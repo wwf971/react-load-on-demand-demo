@@ -1,0 +1,46 @@
+.special-feature {
+  width: 100%;
+  padding: 1rem;
+  border: 2px solid #10b981;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  text-align: center;
+  animation: slideIn 0.5s ease-out;
+  box-sizing: border-box;
+}
+
+.special-feature h2 {
+  margin-top: 0;
+  font-size: 1.5rem;
+}
+
+.special-feature .card {
+  padding: 0.5rem;
+}
+
+.special-feature button {
+  font-size: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: white;
+  color: #10b981;
+  font-weight: bold;
+}
+
+.special-feature .info {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

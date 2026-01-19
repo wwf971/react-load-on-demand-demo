@@ -1,0 +1,46 @@
+.lazy-component {
+  width: 100%;
+  padding: 1rem;
+  border: 2px solid #f97316;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: white;
+  text-align: center;
+  animation: slideIn 0.5s ease-out;
+  box-sizing: border-box;
+}
+
+.lazy-component h2 {
+  margin-top: 0;
+  font-size: 1.5rem;
+}
+
+.lazy-component .card {
+  padding: 0.5rem;
+}
+
+.lazy-component button {
+  font-size: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: white;
+  color: #f97316;
+  font-weight: bold;
+}
+
+.lazy-component .info {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

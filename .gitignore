@@ -1,0 +1,12 @@
+node_modules/
+dist/
+public/
+dist-ssr/
+*.local
+
+.vscode/
+.idea/
+.DS_Store
+
+setup.sh
+config.0.js
