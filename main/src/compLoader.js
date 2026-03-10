@@ -1,51 +1,23 @@
+import { sharedScope } from '../config.js';
+
 /**
  * Step 1 — Load remoteEntry.js dynamically as ES module
  */
 async function loadRemoteEntry(remoteName, remoteEntryUrl) {
-  // Check if already loaded
   if (window[remoteName]) {
     return window[remoteName];
   }
 
-  // Import the remote entry as an ES module
   const remoteModule = await import(/* @vite-ignore */ remoteEntryUrl);
-  
-  // Store it globally for future reference
   window[remoteName] = remoteModule;
-  
   return remoteModule;
 }
 
 /**
- * Step 2 — Initialize shared scope (simplified for Vite)
+ * Step 2 — Initialize shared scope
  */
 async function initFederation(container) {
-  // Initialize with shared React dependencies
   if (container.init) {
-    // Import React and ReactDOM from the host
-    const React = await import('react');
-    const ReactDOM = await import('react-dom');
-    
-    // Create shared scope in the format expected by @originjs/vite-plugin-federation
-    const sharedScope = {
-      react: {
-        '19.2.0': {
-          get: () => Promise.resolve(() => React),
-          loaded: true,
-          from: 'host',
-          version: '19.2.0'
-        }
-      },
-      'react-dom': {
-        '19.2.0': {
-          get: () => Promise.resolve(() => ReactDOM),
-          loaded: true,
-          from: 'host',
-          version: '19.2.0'
-        }
-      }
-    };
-    
     await container.init(sharedScope);
   }
 }
@@ -68,8 +40,6 @@ async function loadRemoteModule(container, exposedModule) {
  */
 export async function loadFederatedComponent(meta) {
   const { remoteName, remoteEntry, exposedModule } = meta;
-
-  console.log('Loading federated component:', meta);
 
   const container = await loadRemoteEntry(remoteName, remoteEntry);
   await initFederation(container);
