@@ -1,11 +1,11 @@
 # Dynamic React Component Loading via Module Federation: An Example
 
-A demo showing how to load react component on demand from a general-purposed net server such as flask.
+A demo of Module Federation: dynamically loading React components from a remote server at runtime, with no knowledge of available components that can be fetched at build time.
 
 ## Architecture
 
-- **main**: The main React app that users see first
-- **lazy**: A remote React component that loads on-demand
+- **main**: Host project. The main React app that users see first
+- **lazy** and **lazy-2**: Remote projects. Each project provides a React component that loads on-demand
 - **run_server.py**: Flask server that serves both apps and provides federation metadata
 
 ```
@@ -156,3 +156,13 @@ To ensure a fetched component can access and subscribe to the same MobX store as
 Host and remote do not need the exact same version, but they must be compatible. When `container.init(sharedScope)` is called, the remote checks whether the host's provided version satisfies its `requiredVersion`. If it does, the host's instance is reused. If not, the remote falls back to loading its own bundled copy — which puts two MobX instances on the page and breaks store subscriptions across the boundary.
 
 As long as versions are compatible (e.g. host has `6.15.0`, remote requires `^6.0.0`), it works. A major version mismatch (e.g. host on `6.x`, remote requires `^7.0.0`) will cause the fallback. The safest practice is to keep both on the same major version and use a loose `requiredVersion` such as `^6.0.0`.
+
+### Comparison with SSR
+
+SSR (Server Side Rendering) and Module Federation solve different problems and are not interchangeable for this use case.
+
+SSR renders components to HTML on the server before sending to the browser. It improves initial load performance, but all components must be known at build time — the server needs to import and render them. It cannot fetch and mount a component from a remote URL at runtime after the page is already loaded.
+
+Module Federation is about runtime extensibility — components are resolved and mounted dynamically on demand, without a full page reload, from sources that were not known when the app was built.
+
+They are complementary: SSR can handle the initial host page load, while Module Federation handles lazily loading remote components afterward.
