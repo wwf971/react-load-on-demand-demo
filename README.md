@@ -31,24 +31,16 @@ react-lazy-load/
 └── run_server.py                          # centralized COMPONENTS_METADATA
 ```
 
-## How It Works
 
-1. User clicks "Load @lazy/component" or "Load @lazy2/feature" button
-2. Main app fetches metadata from `/get-component-metadata/<component-name>`
-3. Server responds with:
-   ```json
-   {
-     "remoteName": "lazyApp",
-     "remoteEntry": "http://localhost:5000/get-component-file/lazy/assets/LazyComponent.js",
-     "exposedModule": "./@lazy/component"
-   }
-   ```
-4. `compLoader.js` dynamically loads the component using Module Federation
-5. Component renders with shared React context
+## How the Host Project Loads Remote Component
 
-## Core Loading Implementation (`compLoader.js`)
+To load a specific remote component, the host only needs to know 3 things:
 
-The module loading is handled by `main/src/compLoader.js` in 4 steps:
+- `remoteName`: the container name declared in remote federation config. Example: `lazyApp`.
+- `remoteEntry`: URL of the remote entry JavaScript file that host imports at runtime. Example: `http://localhost:5000/get-component-file/lazy/assets/LazyComponent.js`.
+- `exposedModule`: module key used in `container.get(...)`. Example: `./@lazy/component`.
+
+The module loading is handled by `main/src/compLoader.js` in host project in 4 steps:
 
 **Step 1 - Load Remote Entry:**
 ```javascript
@@ -88,7 +80,80 @@ return Module.default || Module;
 
 The remote entry URL and module path come from the server's centralized `COMPONENTS_METADATA` configuration, giving the server full control over what gets loaded.
 
-## Setup & Run
+## How to Build a Remote Component
+
+This section introduces what must be true for a component to be loadable by the host,  `lazy` and `lazy-2`
+
+### Build output
+
+The final load target is a built JavaScript file (remote entry), plus optional chunk and css assets:
+
+- One remote entry `.js` file (for example `dist/assets/LazyComponent.js`)
+- Extra JS chunks that remote entry imports
+- Optional CSS files
+
+
+### `vite.config.js` of remote component project
+
+For each remote component project:
+
+- Configure module federation with a unique `name` (this must match `remoteName` returned by server metadata API)
+- Expose one module path (for example `./@lazy/component`)
+- Set `shared` for libraries that must be singleton with host (`react`, `react-dom`, `mobx`)
+- Keep output deterministic enough that server can reference the remote entry URL
+
+Example (simplified):
+
+```javascript
+federation({
+  name: 'lazyApp',
+  filename: 'LazyComponent.js',
+  exposes: {
+    './@lazy/component': './src/LazyComponent.jsx',
+  },
+  shared: {
+    react: { singleton: true, requiredVersion: '^19.2.0' },
+    'react-dom': { singleton: true, requiredVersion: '^19.2.0' },
+    mobx: { singleton: true, requiredVersion: '^6.0.0' },
+  },
+})
+```
+
+### Code organization limits and recommendations
+
+- Export a clear entry component as default export from the exposed module.
+- Do not assume access to host internals by relative paths; communicate via props/context only.
+- Keep side effects minimal at module top-level (no global mutation on import).
+- Keep peer dependency expectations explicit (React/MobX versions must be compatible with host).
+- Use local CSS or scoped class names to avoid global style collisions.
+
+### Runtime contract checklist
+
+A remote component is considered valid if:
+
+- `remoteName` in server metadata matches federation `name`
+- `remoteEntry` URL is reachable and serves JS module content
+- `exposedModule` in metadata exists in federation `exposes`
+- exported module resolves to a React component (`default` or module itself)
+
+
+## How this demo works
+
+1. User clicks "Load @lazy/component" or "Load @lazy2/feature" button
+2. Main app fetches metadata from `/get-component-metadata/<component-name>`
+3. Server responds with:
+   ```json
+   {
+     "remoteName": "lazyApp",
+     "remoteEntry": "http://localhost:5000/get-component-file/lazy/assets/LazyComponent.js",
+     "exposedModule": "./@lazy/component"
+   }
+   ```
+4. `compLoader.js` dynamically loads the component using Module Federation
+5. Component renders with shared React context
+
+
+## How to run this demo
 
 ### 1. Install Dependencies & Build
 
@@ -147,9 +212,17 @@ export const sharedScope = {
 
 `singleton: true` is critical for libraries like React and MobX that break if two instances coexist on the same page.
 
-### Sharing a MobX Store
+## Discussion
 
-To ensure a fetched component can access and subscribe to the same MobX store as the host, MobX must be declared as a shared singleton so both sides use the same runtime. The store itself must then be passed explicitly, either as a prop or via React Context.
+### Sharing Packages Across Host and Remote
+
+In module federation, host and remote may both depend on the same package. If that package is loaded twice (one copy from host, one copy from remote), runtime behavior can break, especially for stateful or singleton-oriented libraries. The general rule is:
+
+- mark shared packages as `shared` and usually `singleton: true` in remote build config
+- provide host-side instances through `container.init(sharedScope)`
+- pass runtime objects explicitly via props or context, rather than relying on shared globals across bundles
+
+For example, if using a global state management library like MobX, Jotai, or Zustand, and if host and remote each load their own instance, store subscriptions will break across the bundle boundary.
 
 ### Version Compatibility
 
