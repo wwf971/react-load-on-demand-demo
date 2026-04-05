@@ -5,7 +5,7 @@ This project demonstrates how to fetch react components from remote server on de
 ## Folders
 
 - `example/`: a simple demonstration with a host sub-project, two remote component sub-projects, and a flask-based web server.
-- `docker/`: implementation of the Docker container that provides a microservice of building components that can be fetched dynamically using module federation.
+- `docker/`: build-service server, templates, and `src/manage-page` (Vite React UI built into `docker/data/manage-page`, copied to `$DATA_ROOT/manage/page/` at launch).
 
 ## Discussion
 

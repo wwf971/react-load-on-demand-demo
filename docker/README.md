@@ -2,16 +2,15 @@
 
 ## Core Concepts
 
-- `Task`: logical identity of a component build target, identified by `taskId`.
-- `Task Version`: a submitted definition snapshot of that task. One task can have many task versions.
-- `Build`: one build trial for a specific `(taskId, taskVersion)`.
-- `Build Version`: identity of one build attempt, identified by `buildVersion`.
+- **Task id** (`taskId`): unique id of a component build target. One running system holds many tasks, each keyed by its task id.
+- **Task version id** (`taskVersion` in API payloads and on disk): unique id of one submitted definition snapshot for a given task. One task id has many task version ids over time.
+- **Task build id** (`buildVersion` in API payloads and on disk): unique id of one build attempt for a given task. One task id can have many task build ids. Each build is tied to a specific task version id at submission time.
 
 Relationship:
 
-- One `Task` has many `Task Version`.
-- One `Task Version` can have many `Build`.
-- Each `Build` has one `Build Version`.
+- One task id has many task version ids.
+- One task version id can be built many times; each attempt has its own task build id.
+- Each build is exactly one `(taskId, taskVersion, task build id)` record.
 
 ## Container Filesystem Layout
 
@@ -33,19 +32,19 @@ Use a fixed layout inside the container:
     <taskId>/
       metadata.yaml
       versions/
-        <taskVersion>/
+        <taskVersionId>/
           taskDescription.yaml
 /cache/
   build/
     <taskId>/
-      <buildVersion>/
+      <taskBuildId>/
         project/               # copied template + task file overrides
         logs/
           build.log
         result.json
 /data/build/
   <taskId>/
-    <buildVersion>/            # persisted build output for this build
+    <taskBuildId>/             # persisted build output for this build
       manifest.json
       remoteEntry.js
       assets/
@@ -62,6 +61,8 @@ Runtime settings:
 
 Use `script/launch.sh` for both Docker and local testing.
 
+- If a parent directory has `pnpm-workspace.yaml`, install runs as that workspace package (`react-lazy-load-docker`). Otherwise install runs only in `docker/` using this folder `pnpm-lock.yaml`.
+- Manage UI: build outputs to `docker/data/manage-page/` (`pnpm --filter react-lazy-load-manage-page run build` from the monorepo root, or `pnpm build` inside `docker/src/manage-page`). `launch.sh` copies that tree into `$DATA_ROOT/manage/page/` so `/` redirects to `/manage/` and static files are served there (container: `/data/manage/page/`).
 - Docker mode (auto-detected if `/app`, `/data`, `/cache` exist):
   - `APP_ROOT=/app`
   - `DATA_ROOT=/data`
@@ -118,13 +119,13 @@ react-remote-vite/
 | POST | `/task/create` | Create a task without queuing a build |
 | POST | `/task/build` | Create a task and queue a build |
 | GET | `/task/getAll` | List all tasks |
-| GET | `/task/build?taskId={taskId}&version=latest` | Get latest build status of a task |
-| GET | `/task/getAllVersions?taskId={taskId}` | Get all build versions of a task |
-| GET | `/task/logs?taskId={taskId}&buildVersion={buildVersion}` | Get build logs of a specific version |
-| POST | `/task/cancel?taskId={taskId}&buildVersion={buildVersion}` | Cancel a build version |
-| POST | `/task/delete?taskId={taskId}` | Delete a task and all its data |
-| POST | `/task/deleteVersion?taskId={taskId}&taskVersion={taskVersion}` | Delete a specific task version |
-| POST | `/task/deleteBuild?taskId={taskId}&buildVersion={buildVersion}` | Delete a specific build version |
+| GET | `/task/build?taskId={taskId}` | Latest task build status for that task id (uses newest task build id on the server) |
+| GET | `/task/getAllVersions?taskId={taskId}` | All task build records for that task id (JSON bodies use `buildVersion` as the task build id) |
+| GET | `/task/logs?taskId={taskId}&buildVersion={taskBuildId}` | Build log text for a given task id and task build id |
+| POST | `/task/cancel?taskId={taskId}&buildVersion={taskBuildId}` | Cancel a task build |
+| POST | `/task/delete?taskId={taskId}` | Delete a task id and all related data |
+| POST | `/task/deleteVersion?taskId={taskId}&taskVersion={taskVersionId}` | Delete a task version id under that task id |
+| POST | `/task/deleteBuild?taskId={taskId}&buildVersion={taskBuildId}` | Delete cache and publish data for that task build id |
 
 ### Build Task Request Body
 
@@ -161,6 +162,7 @@ react-remote-vite/
 
 Notes:
 
+- JSON fields stay as `taskVersion` and `buildVersion`; they carry the **task version id** and **task build id** strings.
 - `taskId` is optional. If omitted, server generates a random id containing only `0-9` and `a-z`.
 - If `taskId` is provided, it must match `[0-9a-z]+`.
 - `files[].path` is relative to task project root only.
@@ -192,7 +194,7 @@ Status values:
 
 ### Fetch Build Logs
 
-Returns plain text log from `/cache/build/<taskId>/<buildVersion>/logs/build.log`.
+Returns plain text log from `/cache/build/<taskId>/<taskBuildId>/logs/build.log`.
 
 ### Cancel Task
 
@@ -204,8 +206,8 @@ For each task:
 
 1. Validate payload and reserve `taskId`.
 2. Create `/data/task/<taskId>/metadata.yaml` if absent.
-3. Save request as `/data/task/<taskId>/versions/<taskVersion>/taskDescription.yaml`.
-4. Create `/cache/build/<taskId>/<buildVersion>/project`.
+3. Save request as `/data/task/<taskId>/versions/<taskVersionId>/taskDescription.yaml`.
+4. Create `/cache/build/<taskId>/<taskBuildId>/project`.
 5. Copy `/app/templates/<template>` to build project folder.
 6. Apply `files[]` writes.
 7. Apply allowed `configOverrides`.
@@ -213,7 +215,7 @@ For each task:
 9. Run `pnpm install --frozen-lockfile` (or controlled lockfile refresh mode).
 10. Run `pnpm run build`.
 11. Validate output contains expected remote entry and manifest.
-12. Publish output to `/data/build/<taskId>/<buildVersion>/`.
+12. Publish output to `/data/build/<taskId>/<taskBuildId>/`.
 13. Save `result.json` and mark task as `success` or `failed`.
 14. Optional cleanup of old build cache folders after retention period.
 
@@ -223,7 +225,7 @@ Recommended runtime model:
 
 - One Node.js HTTP API process receives requests and manages task state.
 - One in-process job queue executes build workers with limited concurrency.
-- Each worker runs `pnpm` and build commands in a child process inside `/cache/build/<taskId>/<buildVersion>/project`.
+- Each worker runs `pnpm` and build commands in a child process inside `/cache/build/<taskId>/<taskBuildId>/project`.
 
 Why this is the default:
 
@@ -270,7 +272,7 @@ Every successful task must publish:
 
 ## Task Description
 
-Each task is stored as a folder under `DATA_ROOT/task/{taskId}/`. The folder contains a `metadata.yaml` file that describes the task identity and its latest state.
+Each task is stored as a folder under `DATA_ROOT/task/{taskId}/`. The folder contains a `metadata.yaml` file that only holds **stable identity and timestamps** for that task id. Anything like “latest task version id” or “latest task build id” is **not** stored there; it is **derived** when needed (see below).
 
 ### `metadata.yaml` format
 
@@ -278,21 +280,24 @@ Each task is stored as a folder under `DATA_ROOT/task/{taskId}/`. The folder con
 taskId: abc123def456
 createdAt: 1742400000000
 updatedAt: 1742401234567
-latestTaskVersion: v3
-latestBuildVersion: 2026.03.20-1
 ```
 
 Fields:
 
-- `taskId` - unique identifier, lowercase alphanumeric, auto-generated if not provided
+- `taskId` - unique task id, lowercase alphanumeric, auto-generated if not provided
 - `createdAt` - unix timestamp (ms) when the task was first created
-- `updatedAt` - unix timestamp (ms) of the last update
-- `latestTaskVersion` - the task version string from the most recent build submission. Empty if the task was created but never built.
-- `latestBuildVersion` - the build version string from the most recent build submission. Empty if never built.
+- `updatedAt` - unix timestamp (ms) of the last metadata-related update (for example a new task version snapshot saved)
 
-### Task versions
+Older deployments may still have `latestTaskVersion` / `latestBuildVersion` keys in this file; they are **ignored**. New writes only persist the three fields above.
 
-Each build submission may carry a `taskVersion`, which represents a logical version of the task definition (for example `v1`, `v2`). Task version data is stored under `DATA_ROOT/task/{taskId}/versions/{taskVersion}/taskDescription.yaml`.
+### Deriving “latest” without storing it
+
+- **Latest task build id (for a given task id):** scan `CACHE_ROOT/build/{taskId}/<taskBuildId>/result.json`, parse each file, and take the build whose `finishedAt` (or `startedAt` if unfinished) is greatest. That is how “current” build status is obtained; there is no separate canonical pointer in `metadata.yaml`.
+- **Latest task version id (for a given task id):** each snapshot under `DATA_ROOT/task/{taskId}/versions/{taskVersionId}/taskDescription.yaml` includes a **`createdAt`** (unix ms) set on first write and kept on later overwrites of the same version id. The task version id with the largest `createdAt` is the natural “newest version” ordering. (If you need tie-breaks, use lexical order of `taskVersionId` as a secondary key.)
+
+### Task version ids
+
+Each build submission may carry a `taskVersion` field (the task version id), for example `v1`, `v2`. That snapshot is stored under `DATA_ROOT/task/{taskId}/versions/{taskVersionId}/taskDescription.yaml`, including **`createdAt`** as above.
 
 ## Minimal Security Rules
 
@@ -300,7 +305,7 @@ Each build submission may carry a `taskVersion`, which represents a logical vers
 - Run builds as non-root user.
 - Restrict allowed override keys and dependency packages.
 - Limit task CPU, memory, and timeout.
-- Keep build outputs immutable by `(taskId, buildVersion)`.
+- Keep build outputs immutable by `(taskId, task build id)`.
 - Do not allow overwriting published versions.
 
 ## Recommended Implementation Language
