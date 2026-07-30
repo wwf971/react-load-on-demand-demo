@@ -46,7 +46,7 @@ Use a fixed layout inside the container:
   <taskId>/
     <taskBuildId>/             # persisted build output for this build
       manifest.json
-      remoteEntry.js
+      compUrl.js
       assets/
 /cache/pnpm/
   store/                       # shared pnpm store cache for all tasks in this container
@@ -149,7 +149,7 @@ react-remote-vite/
     }
   ],
   "configOverrides": {
-    "federation.remoteName": "remote_component_type_a",
+    "federation.compName": "remote_component_type_a",
     "build.outDir": "dist"
   },
   "dependencies": {
@@ -249,7 +249,7 @@ Then use:
 Every successful task must publish:
 
 - `manifest.json`
-- `remoteEntry.js` or named federation entry file
+- `compUrl.js` or named federation entry file
 - referenced assets
 
 `manifest.json` example:
@@ -258,12 +258,12 @@ Every successful task must publish:
 {
   "componentType": "component_type_a",
   "version": "2026.03.20",
-  "remoteName": "remote_component_type_a",
-  "remoteEntry": "remoteEntry.js",
-  "exposedModule": "./ComponentEntry",
+  "compName": "remote_component_type_a",
+  "compUrl": "compUrl.js",
+  "modulePath": "./CompEntry",
   "entryExport": "default",
   "files": [
-    "remoteEntry.js",
+    "compUrl.js",
     "assets/main-abc123.js",
     "assets/main-def456.css"
   ]

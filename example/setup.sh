@@ -7,7 +7,7 @@ react-lazy-load/
 │   └── dist/                     # Built bundle
 ├── lazy/                         # Remote component
 │   ├── src/
-│   │   ├── LazyComponent.jsx    # The lazy-loaded component
+│   │   ├── LazyComp.jsx    # The lazy-loaded component
 │   │   └── LazyComponent.css
 │   ├── vite.config.js           # Federation configuration
 │   └── dist/                    # Built federation bundle

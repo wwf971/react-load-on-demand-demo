@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import './App.css'
-import { loadFederatedComponent } from './compLoader'
+import { loadFederatedComp } from './compLoader'
 
 function App() {
   const [LazyComp, setLazyComp] = useState(null)
@@ -8,22 +8,22 @@ function App() {
   const [loading, setLoading] = useState(null) // null, 'lazy', or 'lazy-2'
   const [error, setError] = useState(null)
 
-  const handleLoadComponent = async (componentName, setComponent) => {
-    setLoading(componentName)
+  const handleLoadComp = async (compName, setComp) => {
+    setLoading(compName)
     setError(null)
     
     try {
       // Fetch metadata from server
-      const response = await fetch(`/get-component-metadata/${componentName}`)
+      const response = await fetch(`/get-comp-metadata/${compName}`)
       const meta = await response.json()
       
       console.log('Received metadata:', meta)
       
       // Load the federated component
-      const Component = await loadFederatedComponent(meta)
-      setComponent(() => Component)
+      const Component = await loadFederatedComp(meta)
+      setComp(() => Component)
     } catch (err) {
-      console.error(`Failed to load ${componentName}:`, err)
+      console.error(`Failed to load ${compName}:`, err)
       setError(err.message)
     } finally {
       setLoading(null)
@@ -42,13 +42,13 @@ function App() {
         {!LazyComp && !Lazy2Comp && !loading && (
           <div className="button-group">
             <button 
-              onClick={() => handleLoadComponent('lazy', setLazyComp)} 
+              onClick={() => handleLoadComp('lazy', setLazyComp)} 
               className="load-button"
             >
               Load @lazy/component
             </button>
             <button 
-              onClick={() => handleLoadComponent('lazy-2', setLazy2Comp)} 
+              onClick={() => handleLoadComp('lazy-2', setLazy2Comp)} 
               className="load-button secondary"
             >
               Load @lazy2/feature

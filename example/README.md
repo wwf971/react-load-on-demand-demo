@@ -18,10 +18,10 @@ react-lazy-load/example/
 │   └── dist/
 ├── lazy/                                  # first lazy component (@lazy/component)
 │   ├── src/
-│   │   ├── LazyComponent.jsx              # orange themed
+│   │   ├── LazyComp.jsx              # orange themed
 │   │   └── LazyComponent.css
-│   ├── vite.config.js                     # filename: 'LazyComponent.js'
-│   └── dist/assets/LazyComponent.js       # .js to be loaded on demand
+│   ├── vite.config.js                     # filename: 'LazyComp.js'
+│   └── dist/assets/LazyComp.js       # .js to be loaded on demand
 ├── lazy-2/                                # second lazy component (@lazy2/feature)
 │   ├── src/
 │   │   ├── SpecialFeature.jsx             # green themed
@@ -36,23 +36,25 @@ react-lazy-load/example/
 
 To load a specific remote component, the host only needs to know 3 things:
 
-- `remoteName`: the container name declared in remote federation config. Example: `lazyApp`.
-- `remoteEntry`: URL of the remote entry JavaScript file that host imports at runtime. Example: `http://localhost:5000/get-component-file/lazy/assets/LazyComponent.js`.
-- `exposedModule`: module key used in `container.get(...)`. Example: `./@lazy/component`.
+- `compName`: the container name declared in remote federation config. Example: `lazyApp`.
+- `compUrl`: URL of the remote entry JavaScript file that host imports at runtime. Example: `http://localhost:5000/get-comp-file/lazy/assets/LazyComp.js`.
+- `modulePath`: module path registered in the remote's `exposes` map, used in `container.get(...)`. Example: `./@lazy/component`.
+
+`compName` and `modulePath` relate like an npm package name and a subpath inside that package: one container can register many exposed module paths, and each path names one JS module (which itself can export more than one component). See `../doc/react-lazy-load.md` for details.
 
 The module loading is handled by `main/src/compLoader.js` in host project in 4 steps:
 
 **Step 1 - Load Remote Entry:**
 ```javascript
 // main/src/compLoader.js
-const remoteModule = await import(/* @vite-ignore */ remoteEntryUrl);
-window[remoteName] = remoteModule;
+const remoteModule = await import(/* @vite-ignore */ compUrl);
+window[compName] = remoteModule;
 ```
 
 **Step 2 - Initialize Shared Scope:**
 ```javascript
 // main/config.js — declares which host modules to expose to remotes
-export const sharedScope = {
+export const sharedPackages = {
   react: makeEntry(React, '19.2.0'),
   'react-dom': makeEntry(ReactDOM, '19.2.0'),
   mobx: makeEntry(mobx, '6.15.0'),
@@ -60,15 +62,15 @@ export const sharedScope = {
 ```
 ```javascript
 // main/src/compLoader.js — passes the host's loaded instances to the remote container
-import { sharedScope } from '../config.js';
-await container.init(sharedScope);
+import { sharedPackages } from '../config.js';
+await container.init(sharedPackages);
 ```
 This ensures the remote component uses the same instances as the host instead of fetching its own copies.
 
 **Step 3 - Load Exposed Module:**
 ```javascript
 // main/src/compLoader.js
-const factory = await container.get(exposedModule); // e.g., './@lazy/component'
+const factory = await container.get(modulePath); // e.g., './@lazy/component'
 const Module = await factory();
 ```
 
@@ -88,7 +90,7 @@ This section introduces what must be true for a component to be loadable by the 
 
 The final load target is a built JavaScript file (remote entry), plus optional chunk and css assets:
 
-- One remote entry `.js` file (for example `dist/assets/LazyComponent.js`)
+- One remote entry `.js` file (for example `dist/assets/LazyComp.js`)
 - Extra JS chunks that remote entry imports
 - Optional CSS files
 
@@ -97,7 +99,7 @@ The final load target is a built JavaScript file (remote entry), plus optional c
 
 For each remote component project:
 
-- Configure module federation with a unique `name` (this must match `remoteName` returned by server metadata API)
+- Configure module federation with a unique `name` (this must match `compName` returned by server metadata API)
 - Expose one module path (for example `./@lazy/component`)
 - Set `shared` for libraries that must be singleton with host (`react`, `react-dom`, `mobx`)
 - Keep output deterministic enough that server can reference the remote entry URL
@@ -107,9 +109,9 @@ Example (simplified):
 ```javascript
 federation({
   name: 'lazyApp',
-  filename: 'LazyComponent.js',
+  filename: 'LazyComp.js',
   exposes: {
-    './@lazy/component': './src/LazyComponent.jsx',
+    './@lazy/component': './src/LazyComp.jsx',
   },
   shared: {
     react: { singleton: true, requiredVersion: '^19.2.0' },
@@ -131,22 +133,22 @@ federation({
 
 A remote component is considered valid if:
 
-- `remoteName` in server metadata matches federation `name`
-- `remoteEntry` URL is reachable and serves JS module content
-- `exposedModule` in metadata exists in federation `exposes`
+- `compName` in server metadata matches federation `name`
+- `compUrl` URL is reachable and serves JS module content
+- `modulePath` in metadata exists in federation `exposes`
 - exported module resolves to a React component (`default` or module itself)
 
 
 ## How this demo works
 
 1. User clicks "Load @lazy/component" or "Load @lazy2/feature" button
-2. Main app fetches metadata from `/get-component-metadata/<component-name>`
+2. Main app fetches metadata from `/get-comp-metadata/<component-name>`
 3. Server responds with:
    ```json
    {
-     "remoteName": "lazyApp",
-     "remoteEntry": "http://localhost:5000/get-component-file/lazy/assets/LazyComponent.js",
-     "exposedModule": "./@lazy/component"
+     "compName": "lazyApp",
+     "compUrl": "http://localhost:5000/get-comp-file/lazy/assets/LazyComp.js",
+     "modulePath": "./@lazy/component"
    }
    ```
 4. `compLoader.js` dynamically loads the component using Module Federation
@@ -198,12 +200,12 @@ shared: {
 }
 ```
 
-**Condition 2 — Runtime, host project's `config.js` + `compLoader.js` (`./main/config.js`, `./main/src/compLoader.js`)**: `container.init(sharedScope)` hands the host's already-loaded instances to the remote, so the remote resolves its references from there instead of making a network request, satisfying condition 2.
+**Condition 2 — Runtime, host project's `config.js` + `compLoader.js` (`./main/config.js`, `./main/src/compLoader.js`)**: `container.init(sharedPackages)` hands the host's already-loaded instances to the remote, so the remote resolves its references from there instead of making a network request, satisfying condition 2.
 
-The `sharedScope` in `config.js` (`./main/config.js`) declares which host modules to expose:
+The `sharedPackages` in `config.js` (`./main/config.js`) declares which host modules to expose:
 
 ```js
-export const sharedScope = {
+export const sharedPackages = {
   react: makeEntry(React, '19.2.0'),
   'react-dom': makeEntry(ReactDOM, '19.2.0'),
   mobx: makeEntry(mobx, '6.15.0'),

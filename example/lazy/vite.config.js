@@ -8,17 +8,17 @@ export default defineConfig({
     react(),
     federation({
       name: 'lazyApp',
-      filename: 'LazyComponent.js',
+      filename: 'LazyComp.js',
       exposes: {
-        './@lazy/component': './src/LazyComponent.jsx',
+        './@lazy/component': './src/LazyComp.jsx',
       },
-      shared: {
+      shared: { 
         react: {
-          singleton: true,
+          singleton: true, // important for remote and host to use same react package
           requiredVersion: '^19.2.0'
         },
         'react-dom': {
-          singleton: true,
+          singleton: true, // important for remote and host to use same react-dom package
           requiredVersion: '^19.2.0'
         }
       }

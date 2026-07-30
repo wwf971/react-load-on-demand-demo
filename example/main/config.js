@@ -13,7 +13,7 @@ function makeEntry(mod, version) {
   };
 }
 
-export const sharedScope = {
+export const sharedPackages = {
   react: makeEntry(React, '19.2.0'),
   'react-dom': makeEntry(ReactDOM, '19.2.0'),
   mobx: makeEntry(mobx, '6.15.0'),

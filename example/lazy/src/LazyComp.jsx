@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import './LazyComponent.css'
+import './LazyComp.css'
 
-function LazyComponent() {
+function LazyComp() {
   const [count, setCount] = useState(0)
 
   return (
@@ -20,4 +20,4 @@ function LazyComponent() {
   )
 }
 
-export default LazyComponent
+export default LazyComp
