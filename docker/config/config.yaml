@@ -1,0 +1,21 @@
+# Example service config. Real local overrides belong in config.0.yaml
+# (gitignored). Merge: load this file, then overlay config.0.yaml if present.
+
+server:
+  port: 9415
+  host: 0.0.0.0
+
+storage_obj:
+  # example: point at a storage-obj instance
+  url_base: http://127.0.0.1:5107
+  # null = use the storage-obj runtime default endpoint
+  storage_endpoint_key: null
+  # space names become {prefix}-service, {prefix}-comp, ...
+  space_prefix: react-lazy-load
+
+build:
+  concurrency: 1
+  timeout_seconds: 600
+  # false: a task interrupted by a service restart is left in failed state;
+  # retry is an explicit POST /api/comp/version/build
+  is_requeue_on_restart: false

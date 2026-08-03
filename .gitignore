@@ -12,3 +12,7 @@ test-data/
 
 setup.sh
 config.0.js
+config.0.yaml
+
+
+/docker/data/

@@ -5,8 +5,10 @@ This project demonstrates how to fetch react components from remote server on de
 ## Project Folder Structure
 
 - `example/`: a simple demonstration with a host sub-project, two remote component sub-projects, and a flask-based web server.
-- `docker/`: build-service server, templates, and `src/manage-page` (Vite React UI built into `docker/data/manage-page`, copied to `$DATA_ROOT/manage/page/` at launch).
+- `docker/`: remote-component service. Folder layout: `docker/README.md`.
+- `doc/`: service design docs; start at `doc/react-lazy-load_service.md`.
 
 ## Technical Details
 
-For more technical discussion, refer to `doc/react-lazy-load.md`.
+- `doc/react-lazy-load.md`: how Module Federation runtime loading works (the `example/` demo).
+- `doc/react-lazy-load_service.md`: semantic model and design of the remote component service.

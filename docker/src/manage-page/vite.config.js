@@ -28,29 +28,19 @@ export default defineConfig({
     alias: {
       react: reactPkgRoot,
       'react-dom': reactDomPkgRoot,
-      '@wwf971/react-comp-misc/TabsOnTop': path.join(
-        reactCompMiscRoot,
-        'src/layout/tab/TabsOnTop.jsx',
-      ),
-      '@wwf971/react-comp-misc/TabsOnTop.css': path.join(
-        reactCompMiscRoot,
-        'src/layout/tab/TabsOnTop.css',
-      ),
-      '@wwf971/react-comp-misc/PathBar': path.join(
-        reactCompMiscRoot,
-        'src/path/PathBar.jsx',
-      ),
-      '@wwf971/react-comp-misc/PathBar.css': path.join(
-        reactCompMiscRoot,
-        'src/path/PathBar.css',
-      ),
-      '@wwf971/react-comp-misc/CrossIcon': path.join(
-        reactCompMiscRoot,
-        'src/icon/CrossIcon.jsx',
-      ),
+      '@wwf971/react-comp-misc': path.join(reactCompMiscRoot, 'src/index.js'),
     },
   },
   base: '/manage/',
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:9415',
+        ws: true,
+      },
+      '/comp-file': 'http://127.0.0.1:9415',
+    },
+  },
   build: {
     outDir: path.resolve(__dirname, '../../data/manage-page'),
     emptyOutDir: true,

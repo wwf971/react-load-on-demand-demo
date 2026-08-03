@@ -58,12 +58,6 @@ if [ "$MODE" = "docker" ]; then
   mkdir -p "$CACHE_ROOT/pnpm/store"
 fi
 
-# Keep template path stable inside APP_ROOT for build logic.
-if [ ! -d "$APP_ROOT/templates" ] && [ -d "$DOCKER_DIR/templates" ]; then
-  mkdir -p "$APP_ROOT"
-  ln -s "$DOCKER_DIR/templates" "$APP_ROOT/templates"
-fi
-
 MANAGE_BUILD_SRC="$DOCKER_DIR/data/manage-page"
 MANAGE_RUNTIME_DIR="$DATA_ROOT/manage/page"
 

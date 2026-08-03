@@ -1,0 +1,36 @@
+// Descriptor for submitting this project's build output as one new component
+// version (pattern 2: upload prebuilt). Steps:
+//   pnpm install
+//   pnpm run build       -> dist/
+//   pnpm run submit      -> uploads dist/ as outputFileList
+{
+  "service": { "urlSubmit": "http://127.0.0.1:9415" },
+
+  "compName": "hello-card",
+
+  // must stay consistent with vite.config.js (containerName = federation name,
+  // fileEntry = federation filename, modulePath = key in exposes)
+  "metadata": {
+    "schemaVersion": 1,
+    "versionName": "0.0.1",
+    "description": "sample hello card component, built locally",
+    "props": {
+      "data": { "type": "object", "description": "content to render" }
+    },
+    "packages": {
+      "react": { "versionRequired": "^19.2.0", "isShared": true },
+      "react-dom": { "versionRequired": "^19.2.0", "isShared": true }
+    },
+    "federation": {
+      "containerName": "helloCardApp",
+      "fileEntry": "HelloCard.js",
+      "fileEntrySource": "src/entry.jsx",
+      "modulePath": "./hello-card",
+      "entryExport": "default"
+    }
+  },
+
+  // pattern 2: files under this folder are submitted as outputFileList,
+  // with paths relative to the folder itself
+  "output": { "dir": "dist" }
+}

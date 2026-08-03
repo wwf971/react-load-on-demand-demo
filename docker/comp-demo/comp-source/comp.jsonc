@@ -1,0 +1,33 @@
+// Descriptor for submitting this folder as one new component version (pattern 1:
+// the service builds the source). Submit with:
+//   python script/submit_comp.py <this folder>
+{
+  "service": { "urlSubmit": "http://127.0.0.1:9415" },
+
+  // resolved to compId via /api/comp/find-by-name; component is created when missing
+  "compName": "hello-card",
+
+  // version metadata, refer to /doc/service_resource.md#version-metadata
+  "metadata": {
+    "schemaVersion": 1,
+    "versionName": "0.0.1",
+    "description": "sample hello card component",
+    "props": {
+      "data": { "type": "object", "description": "content to render" }
+    },
+    "packages": {
+      "react": { "versionRequired": "^19.2.0", "isShared": true },
+      "react-dom": { "versionRequired": "^19.2.0", "isShared": true }
+    },
+    "federation": {
+      "containerName": "helloCardApp",
+      "fileEntry": "HelloCard.js",
+      "fileEntrySource": "src/entry.jsx",
+      "modulePath": "./hello-card",
+      "entryExport": "default"
+    }
+  },
+
+  // pattern 1: files under this folder are submitted as sourceFileList
+  "source": { "dir": "src" }
+}

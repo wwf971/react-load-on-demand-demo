@@ -1,51 +1,81 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
 import { observer } from 'mobx-react-lite'
-import { AllTasks } from './AllTasks.jsx'
-import { TAB_ACTION } from '../tabActionKinds.js'
+import { RefreshIcon, SpinningCircle } from '@wwf971/react-comp-misc'
+import { storeService } from '../storeService.js'
 
-export const Home = observer(function Home({ pageStore, tabId, onTabAction }) {
-  const [isCreating, setIsCreating] = useState(false)
-  const [createError, setCreateError] = useState(null)
+const Home = observer(() => {
+  useEffect(() => {
+    storeService.fetchStatus()
+  }, [])
 
-  const handleCreateTask = async () => {
-    setCreateError(null)
-    setIsCreating(true)
-    try {
-      await pageStore.createEmptyTask()
-    } catch (e) {
-      setCreateError(e instanceof Error ? e.message : 'create failed')
-    } finally {
-      setIsCreating(false)
-    }
-  }
-
-  const handleTaskDoubleClick = (taskId) => {
-    if (typeof onTabAction !== 'function' || !tabId) {
-      return
-    }
-    onTabAction({
-      type: TAB_ACTION.OPEN_TASK_IN_NEW_TAB,
-      sourceTabId: tabId,
-      taskId,
-    })
-  }
+  const status = storeService.statusData
+  const isInitialLoading = storeService.isLoading && !storeService.hasLoaded
 
   return (
-    <div className="home-root">
-      <div className="home-actions">
-        <button
-          type="button"
-          className="home-create-btn"
-          disabled={isCreating}
-          onClick={handleCreateTask}
-        >
-          {isCreating ? 'Creating' : 'Create task'}
+    <div>
+      <div className="panel-title">
+        Service Status
+        <button className="icon-btn" title="refresh" onClick={() => storeService.fetchStatus()}>
+          {storeService.isLoading ? <SpinningCircle width={14} height={14} /> : <RefreshIcon width={14} height={14} />}
         </button>
-        {createError ? (
-          <div className="home-create-error">{createError}</div>
-        ) : null}
       </div>
-      <AllTasks pageStore={pageStore} onTaskDoubleClick={handleTaskDoubleClick} />
+
+      {isInitialLoading && <div className="field-note">loading...</div>}
+
+      {!isInitialLoading && storeService.loadError && !status && (
+        <div className="field-note status-3">{storeService.loadError}</div>
+      )}
+
+      {status && (
+        <>
+          <div className="row-table">
+            <StatusRow
+              label="ready"
+              value={
+                status.isReady ? (
+                  <span className="status-2">yes</span>
+                ) : (
+                  <span className="status-3">no{status.initError ? `: ${status.initError}` : ''}</span>
+                )
+              }
+            />
+            <StatusRow label="service" value={status.serviceMetadata?.serviceName || ''} />
+            <StatusRow label="components" value={String(status.compCount)} />
+            <StatusRow label="versions" value={String(status.versionCount)} />
+            <StatusRow
+              label="tasks"
+              value={`${status.taskCount} total, ${status.taskCountUndergoing} undergoing`}
+            />
+            <StatusRow
+              label="storage-obj"
+              value={`${status.storage?.urlBase} (prefix ${status.storage?.spacePrefix})`}
+            />
+            <StatusRow
+              label="storage reachable"
+              value={
+                status.storage?.isReachable ? (
+                  <span className="status-2">yes</span>
+                ) : (
+                  <span className="status-3">no</span>
+                )
+              }
+            />
+            <StatusRow label="server time" value={status.timeNow} />
+          </div>
+
+          <div className="panel-title-2">Raw</div>
+          <div className="status-json-block">{JSON.stringify(status, null, 2)}</div>
+        </>
+      )}
     </div>
   )
 })
+
+const StatusRow = ({ label, value }) => (
+  <div className="row-table-row" style={{ cursor: 'default' }}>
+    <div className="cell" style={{ width: 150, fontWeight: 600 }}>{label}</div>
+    <div className="cell" style={{ flex: 1 }}>{value}</div>
+  </div>
+)
+
+export default Home
