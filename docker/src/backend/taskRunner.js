@@ -18,6 +18,7 @@ import {
 } from './task.js'
 import { timeNow } from './time.js'
 import { isSafeRelativePath } from './resource.js'
+import { versionMetadataAnalyze } from './versionMetadata.js'
 
 const POLL_INTERVAL_MS = 2000
 const BUILD_COMP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'build-comp')
@@ -159,13 +160,8 @@ export class TaskRunner {
       if (!comp || !version) throw new Error('component or version not found')
       if (!version.record.source?.fileGroupId) throw new Error('version has no source')
       const metadata = version.record.metadata || {}
-      const federation = metadata.federation || {}
-      if (!federation.containerName || !federation.fileEntry || !federation.modulePath) {
-        throw new Error('version metadata.federation is incomplete')
-      }
-      if (!federation.fileEntrySource) {
-        throw new Error('metadata.federation.fileEntrySource is required for service build')
-      }
+      const metadataInfo = versionMetadataAnalyze(metadata, { isSourceBuild: true })
+      const federation = metadataInfo.federation
       const sourceFiles = await this.resource.fileGroupFilesGet(version.record.source.fileGroupId)
 
       // context copies: make this folder inspectable and reproducible on its own
@@ -183,18 +179,23 @@ export class TaskRunner {
       // build project: build-comp scaffold + source + generated config
       const projectDir = path.join(workDir, 'project')
       await fs.cp(BUILD_COMP_DIR, projectDir, { recursive: true })
-      let isEntrySourceFound = false
+      const pathEntrySourceSet = new Set(metadataInfo.sourceByModulePath.values())
+      const pathSourceFoundSet = new Set()
       for (const file of sourceFiles) {
         if (!isSafeRelativePath(file.path)) throw new Error(`invalid source path: ${file.path}`)
-        if (file.path === federation.fileEntrySource) isEntrySourceFound = true
+        if (pathEntrySourceSet.has(file.path)) {
+          pathSourceFoundSet.add(file.path)
+        }
         const target = path.join(projectDir, file.path)
         await fs.mkdir(path.dirname(target), { recursive: true })
         await fs.writeFile(target, file.contentBuffer)
       }
-      if (!isEntrySourceFound) {
-        throw new Error(`fileEntrySource not in source files: ${federation.fileEntrySource}`)
+      for (const fileEntrySource of pathEntrySourceSet) {
+        if (!pathSourceFoundSet.has(fileEntrySource)) {
+          throw new Error(`fileEntrySource not in source files: ${fileEntrySource}`)
+        }
       }
-      await this.generateBuildConfig(projectDir, metadata)
+      await this.generateBuildConfig(projectDir, metadataInfo)
       await log('project prepared from build-comp')
 
       // install + build
@@ -273,10 +274,10 @@ export class TaskRunner {
     })
   }
 
-  // write federation.config.json and merge metadata.packages into package.json
-  async generateBuildConfig(projectDir, metadata) {
-    const federation = metadata.federation
-    const packages = metadata.packages || {}
+  // write federation.config.json and merge exposed-component packages into package.json
+  async generateBuildConfig(projectDir, metadataInfo) {
+    const federation = metadataInfo.federation
+    const packages = metadataInfo.packageByName
 
     const shared = {}
     for (const [name, info] of Object.entries(packages)) {
@@ -290,8 +291,7 @@ export class TaskRunner {
         {
           containerName: federation.containerName,
           fileEntry: federation.fileEntry,
-          fileEntrySource: federation.fileEntrySource,
-          modulePath: federation.modulePath,
+          exposes: Object.fromEntries(metadataInfo.sourceByModulePath),
           shared,
         },
         null,

@@ -11,3 +11,18 @@
 .hello-card-body {
   margin-top: 2px;
 }
+
+.hello-badge {
+  display: inline-block;
+  border: 1px solid #8aa7c4;
+  border-radius: 2px;
+  padding: 1px 4px;
+  color: #24547d;
+  background: #edf5fc;
+}
+
+.hello-badge-success {
+  border-color: #83aa8b;
+  color: #286137;
+  background: #eef8f0;
+}

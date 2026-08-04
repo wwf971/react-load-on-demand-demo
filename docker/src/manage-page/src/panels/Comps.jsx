@@ -1,16 +1,22 @@
 import { useEffect } from 'react'
 import { observer } from 'mobx-react-lite'
 import {
+  AddIcon,
+  CrossIcon,
+  DeleteIcon,
   EditableValueComp,
+  EyeIcon,
   FolderView,
+  ForwardIcon,
   MetadataKeyValues,
   RefreshIcon,
-  SpinningCircle,
-  AddIcon,
 } from '@wwf971/react-comp-misc'
 import { storeUi } from '../store.js'
 import { storeComp, buildHeadOf, buildKeyOf } from '../storeComp.js'
 import { storeTask } from '../storeTask.js'
+import ControlIconItem from '../ControlIconItem.jsx'
+import HorizontalButtonGroup from '../HorizontalButtonGroup.jsx'
+import TitleIconAction from '../TitleIconAction.jsx'
 
 const BUILD_STATUS_TEXT = { 2: 'success', 3: 'fail', 4: 'cancel' }
 const COMP_COLS_ORDER = ['compName', 'description', 'tags', 'versionCount']
@@ -41,52 +47,148 @@ const VERSION_COL_SIZE_BY_ID = {
   buildCount: { width: 70, minWidth: 50, resizable: true },
   createdAt: { width: 180, minWidth: 120, resizable: true },
 }
+const BUILD_COLS_ORDER = ['buildId', 'buildType', 'buildStatus', 'isHead', 'finishedAt']
+const BUILD_COLUMNS = {
+  buildId: { data: 'buildId', align: 'left' },
+  buildType: { data: 'buildType', align: 'left' },
+  buildStatus: { data: 'buildStatus', align: 'left' },
+  isHead: { data: 'isHead', align: 'left' },
+  finishedAt: { data: 'finishedAt', align: 'left' },
+}
+const BUILD_COL_SIZE_BY_ID = {
+  buildId: { width: 110, minWidth: 80, resizable: true },
+  buildType: { width: 110, minWidth: 70, resizable: true },
+  buildStatus: { width: 70, minWidth: 50, resizable: true },
+  isHead: { width: 50, minWidth: 40, resizable: true },
+  finishedAt: { width: 180, minWidth: 120, resizable: true },
+}
 
 const ServableCell = ({ data }) => (
   <span className={data ? 'status-2' : 'status-3'}>{data ? 'yes' : 'no'}</span>
 )
 
-const Comps = observer(() => {
+const BuildStatusCell = ({ data }) => (
+  <span className={`status-${data}`}>{BUILD_STATUS_TEXT[data] || data}</span>
+)
+
+const Comps = observer(({ tabId, pathData }) => {
   useEffect(() => {
     storeComp.fetchComps()
   }, [])
 
-  const compSelected = storeUi.compSelectedId
-    ? storeComp.compById.get(storeUi.compSelectedId)
+  useEffect(() => {
+    if (pathData.compId) storeComp.fetchVersions(pathData.compId)
+  }, [pathData.compId])
+
+  useEffect(() => {
+    if (pathData.compId && pathData.versionId) {
+      storeComp.fetchVersion(pathData.compId, pathData.versionId)
+    }
+  }, [pathData.compId, pathData.versionId])
+
+  const comp = pathData.compId ? storeComp.compById.get(pathData.compId) : null
+  const version = pathData.compId && pathData.versionId
+    ? storeComp.versionGet(pathData.compId, pathData.versionId)
+    : null
+  const build = version && pathData.buildId
+    ? version.buildList?.find((item) => item.buildId === pathData.buildId)
     : null
 
   return (
     <div>
-      <div className="panel-title">
-        Components
-        <button className="icon-btn" title="refresh" onClick={() => storeComp.fetchComps()}>
-          {storeComp.isCompsLoading ? <SpinningCircle width={14} height={14} /> : <RefreshIcon width={14} height={14} />}
-        </button>
-      </div>
-
-      <CompCreate />
-      <CompListTable />
-
-      {compSelected && (
-        <>
-          <hr className="panel-divider" />
-          <CompDetail comp={compSelected} />
-        </>
+      {!pathData.compId && <CompListPage tabId={tabId} />}
+      {pathData.compId && !pathData.versionId && (
+        comp
+          ? <CompDetail tabId={tabId} comp={comp} />
+          : <div className="field-note">loading component...</div>
+      )}
+      {pathData.versionId && !pathData.buildId && (
+        version
+          ? <VersionDetail tabId={tabId} compId={pathData.compId} version={version} />
+          : <div className="field-note">loading version...</div>
+      )}
+      {pathData.buildId && (
+        build
+          ? <BuildDetail compId={pathData.compId} versionId={pathData.versionId} build={build} />
+          : <div className="field-note">loading build...</div>
       )}
     </div>
   )
 })
 
-const CompCreate = observer(() => {
-  if (!storeUi.isCompCreateOpen) {
-    return (
-      <div className="btn-row">
-        <button className="btn" onClick={() => storeUi.setCompCreateOpen(true)}>
-          <AddIcon width={11} height={11} /> new component
-        </button>
+const CompListPage = observer(({ tabId }) => {
+  const state = storeUi.tabStateGet(tabId)
+  const compSelectedId = state?.compRowSelectedId || ''
+  const isDeleteConfirm = state?.confirmState?.kind === 'comp-delete'
+    && state.confirmState.compId === compSelectedId
+    && compSelectedId
+
+  return (
+    <>
+      <div className="panel-title">
+        Components
+        <TitleIconAction
+          title="refresh"
+          isLoading={storeComp.isCompsLoading}
+          onClick={() => storeComp.fetchComps()}
+          icon={<RefreshIcon width={14} height={14} />}
+        />
       </div>
-    )
-  }
+      <div className="table-control-row">
+        <HorizontalButtonGroup groupId={`comp-list-${tabId}`}>
+          <ControlIconItem
+            label="new component"
+            onClick={() => storeUi.tabCompCreateOpenSet(tabId, true)}
+          >
+            <AddIcon width={12} height={12} />
+          </ControlIconItem>
+          {isDeleteConfirm ? (
+            <>
+              <ControlIconItem
+                label="confirm delete"
+                isDanger
+                onClick={async () => {
+                  const result = await storeComp.compDelete(compSelectedId)
+                  if (result?.code === 0) {
+                    storeUi.tabConfirmSet(tabId, null)
+                    storeUi.tabCompRowSelectedSet(tabId, '')
+                  }
+                }}
+              >
+                <DeleteIcon width={12} height={12} />
+              </ControlIconItem>
+              <ControlIconItem
+                label="cancel"
+                onClick={() => storeUi.tabConfirmSet(tabId, null)}
+              >
+                <CrossIcon size={12} />
+              </ControlIconItem>
+            </>
+          ) : (
+            <ControlIconItem
+              label="delete"
+              isDanger
+              isDisabled={!compSelectedId}
+              onClick={() => {
+                if (!compSelectedId) return
+                storeUi.tabConfirmSet(tabId, { kind: 'comp-delete', compId: compSelectedId })
+              }}
+            >
+              <DeleteIcon width={12} height={12} />
+            </ControlIconItem>
+          )}
+        </HorizontalButtonGroup>
+      </div>
+      <CompCreate tabId={tabId} />
+      <CompListTable tabId={tabId} />
+    </>
+  )
+})
+
+const CompCreate = observer(({ tabId }) => {
+  const state = storeUi.tabStateGet(tabId)
+  if (!state?.isCompCreateOpen) return null
+
   return (
     <div className="comp-create-row">
       <span className="field-note">new component:</span>
@@ -98,41 +200,41 @@ const CompCreate = observer(() => {
             isEditable: true,
             isEditing: true,
             isEditIconVisible: false,
-            isExternalSubmitting: storeUi.isCompCreatePending,
+            isExternalSubmitting: state.isCompCreatePending,
             placeholder: 'compName',
             valueType: 'text',
           }}
           onEvent={async (eventType, eventData) => {
             if (eventType === 'editStateChange') {
               if (eventData.reason === 'cancel' || eventData.reason === 'unchanged') {
-                storeUi.setCompCreateOpen(false)
+                storeUi.tabCompCreateOpenSet(tabId, false)
               }
               return { code: 0 }
             }
             if (eventType !== 'valueCommit') return { code: 0 }
             const compName = eventData.valueNext.trim()
             if (!compName) return { code: -1, message: 'compName is required' }
-            storeUi.setCompCreatePending(true)
+            storeUi.tabCompCreatePendingSet(tabId, true)
             const result = await storeComp.compCreate(compName)
-            storeUi.setCompCreatePending(false)
-            if (result.code === 0) storeUi.setCompCreateOpen(false)
+            storeUi.tabCompCreatePendingSet(tabId, false)
+            if (result.code === 0) storeUi.tabCompCreateOpenSet(tabId, false)
             return result
           }}
         />
       </span>
-      <button
-        className="btn"
-        onClick={() => {
-          storeUi.setCompCreateOpen(false)
-        }}
+      <ControlIconItem
+        label="cancel"
+        onClick={() => storeUi.tabCompCreateOpenSet(tabId, false)}
       >
-        cancel
-      </button>
+        <CrossIcon size={12} />
+      </ControlIconItem>
     </div>
   )
 })
 
-const CompListTable = observer(() => {
+const CompListTable = observer(({ tabId }) => {
+  const state = storeUi.tabStateGet(tabId)
+  const compSelectedId = state?.compRowSelectedId || ''
   const rows = storeComp.compIds.map((compId) => {
     const record = storeComp.compById.get(compId)
     return {
@@ -153,7 +255,7 @@ const CompListTable = observer(() => {
           columns: COMP_COLUMNS,
           colsOrder: COMP_COLS_ORDER,
           rows,
-          rowIdsSelected: storeUi.compSelectedId ? [storeUi.compSelectedId] : [],
+          rowIdsSelected: compSelectedId ? [compSelectedId] : [],
           statusBar: {
             itemCount: rows.length,
             messageState: storeComp.isCompsLoading
@@ -171,9 +273,12 @@ const CompListTable = observer(() => {
         }}
         onEvent={(eventType, eventData) => {
           if (eventType === 'rowIdsSelectedChange') {
-            const compId = eventData.rowIdsSelected?.[0] || ''
-            storeUi.selectComp(compId)
-            if (compId) storeComp.fetchVersions(compId)
+            storeUi.tabCompRowSelectedSet(tabId, eventData.rowIdsSelected?.[0] || '')
+            return { code: 0 }
+          }
+          if (eventType === 'rowDoubleClick') {
+            const compId = eventData.rowId || ''
+            if (compId) storeUi.pathOpen({ kind: 'components', compId }, { tabId })
             return { code: 0 }
           }
           return { code: 0 }
@@ -186,80 +291,84 @@ const CompListTable = observer(() => {
   )
 })
 
-const CompDetail = observer(({ comp }) => {
+const CompDetail = observer(({ tabId, comp }) => {
   const compId = comp.compId
   const versions = storeComp.versionListByCompId.get(compId) || []
-  const versionSelected = versions.find((v) => v.versionId === storeUi.versionSelectedId)
+  const state = storeUi.tabStateGet(tabId)
+  const versionSelectedId = state?.versionRowSelectedId || ''
+  const versionSelected = versions.find((item) => item.versionId === versionSelectedId)
 
   return (
     <div>
       <div className="panel-title">
-        <EditableValueComp
-          data={{ value: comp.compName }}
-          config={{ configKey: `comp-name-${compId}`, isEditable: true, valueType: 'text' }}
-          onEvent={async (eventType, eventData) => {
-            if (eventType !== 'valueCommit') return { code: 0 }
-            return storeComp.compUpdate(compId, { compName: eventData.valueNext })
-          }}
-        />
-        <span className="cell-id">{compId}</span>
+        <span className="panel-title-main">
+          <EditableValueComp
+            data={{ value: comp.compName }}
+            config={{ configKey: `comp-name-${compId}`, isEditable: true, valueType: 'text' }}
+            onEvent={async (eventType, eventData) => {
+              if (eventType !== 'valueCommit') return { code: 0 }
+              return storeComp.compUpdate(compId, { compName: eventData.valueNext })
+            }}
+          />
+          <span className="cell-id">{compId}</span>
+        </span>
       </div>
       <div className="field-note">
         created {comp.createdAt} / updated {comp.updatedAt}
       </div>
-      <div className="btn-row">
-        {storeUi.confirmState?.kind === 'comp-delete' && storeUi.confirmState.compId === compId ? (
-          <span className="inline-confirm">
-            delete this component?
-            <button className="btn danger" onClick={() => storeComp.compDelete(compId)}>
-              confirm
-            </button>
-            <button className="btn" onClick={() => storeUi.setConfirm(null)}>
-              cancel
-            </button>
-          </span>
-        ) : (
-          <button
-            className="btn danger"
-            onClick={() => storeUi.setConfirm({ kind: 'comp-delete', compId })}
-          >
-            delete component
-          </button>
-        )}
-      </div>
 
-      <CompMetadata comp={comp} />
+      <CompMetadata tabId={tabId} comp={comp} />
 
       <hr className="panel-divider" />
       <div className="panel-title-2">
         Versions
-        <button className="icon-btn" title="refresh" onClick={() => storeComp.fetchVersions(compId)}>
-          {storeComp.isVersionsLoadingByCompId.get(compId) ? (
-            <SpinningCircle width={13} height={13} />
-          ) : (
-            <RefreshIcon width={13} height={13} />
-          )}
-        </button>
+        <TitleIconAction
+          title="refresh"
+          isLoading={storeComp.isVersionsLoadingByCompId.get(compId)}
+          onClick={() => storeComp.fetchVersions(compId)}
+          icon={<RefreshIcon width={13} height={13} />}
+        />
+      </div>
+      <div className="table-control-row">
+        <HorizontalButtonGroup groupId={`version-list-${tabId}`}>
+          <ControlIconItem
+            label="open"
+            isDisabled={!versionSelectedId}
+            onClick={() => {
+              if (!versionSelectedId) return
+              storeUi.pathOpen({ kind: 'components', compId, versionId: versionSelectedId }, { tabId })
+            }}
+          >
+            <ForwardIcon width={12} height={12} />
+          </ControlIconItem>
+          <ControlIconItem
+            label="rebuild"
+            isDisabled={!versionSelected?.source?.fileGroupId}
+            onClick={async () => {
+              if (!versionSelectedId || !versionSelected?.source?.fileGroupId) return
+              const taskId = await storeComp.versionBuild(compId, versionSelectedId)
+              if (taskId) storeTask.fetchTask(taskId)
+            }}
+          >
+            <RefreshIcon width={12} height={12} />
+          </ControlIconItem>
+        </HorizontalButtonGroup>
       </div>
       <VersionListTable
+        tabId={tabId}
+        compId={compId}
         versions={versions}
+        versionSelectedId={versionSelectedId}
         isLoading={storeComp.isVersionsLoadingByCompId.get(compId)}
       />
-
-      {versionSelected && (
-        <>
-          <hr className="panel-divider" />
-          <VersionDetail compId={compId} version={versionSelected} />
-        </>
-      )}
     </div>
   )
 })
 
-// comp metadata is editable; values that are not strings are shown/edited as JSON text
-const CompMetadata = observer(({ comp }) => {
+const CompMetadata = observer(({ tabId, comp }) => {
   const compId = comp.compId
   const metadata = comp.metadata || {}
+  const state = storeUi.tabStateGet(tabId)
   const rows = Object.entries(metadata).map(([key, value]) => ({
     id: key,
     key,
@@ -283,12 +392,12 @@ const CompMetadata = observer(({ comp }) => {
       data={{
         titleText: 'Comp Metadata',
         rows,
-        selectedRowId: storeUi.metadataSelectedRowId,
+        selectedRowId: state?.metadataSelectedRowId || null,
       }}
       config={{ isEditable: true, keyColWidth: '160px' }}
       onEvent={async (eventType, eventData) => {
         if (eventType === 'selectedRowIdChange') {
-          storeUi.setMetadataSelectedRowId(eventData?.selectedRowId ?? eventData?.rowId ?? null)
+          storeUi.tabMetadataRowSet(tabId, eventData?.selectedRowId ?? eventData?.rowId ?? null)
           return { code: 0 }
         }
         if (eventType === 'cellUpdate') {
@@ -336,7 +445,7 @@ const CompMetadata = observer(({ comp }) => {
   )
 })
 
-const VersionListTable = observer(({ versions, isLoading }) => {
+const VersionListTable = observer(({ tabId, compId, versions, versionSelectedId, isLoading }) => {
   const rows = versions.map((version) => ({
     id: version.versionId,
     data: {
@@ -355,7 +464,7 @@ const VersionListTable = observer(({ versions, isLoading }) => {
           columns: VERSION_COLUMNS,
           colsOrder: VERSION_COLS_ORDER,
           rows,
-          rowIdsSelected: storeUi.versionSelectedId ? [storeUi.versionSelectedId] : [],
+          rowIdsSelected: versionSelectedId ? [versionSelectedId] : [],
           statusBar: {
             itemCount: rows.length,
             messageState: isLoading
@@ -375,7 +484,12 @@ const VersionListTable = observer(({ versions, isLoading }) => {
         }}
         onEvent={(eventType, eventData) => {
           if (eventType === 'rowIdsSelectedChange') {
-            storeUi.selectVersion(eventData.rowIdsSelected?.[0] || '')
+            storeUi.tabVersionRowSelectedSet(tabId, eventData.rowIdsSelected?.[0] || '')
+            return { code: 0 }
+          }
+          if (eventType === 'rowDoubleClick') {
+            const versionId = eventData.rowId || ''
+            if (versionId) storeUi.pathOpen({ kind: 'components', compId, versionId }, { tabId })
             return { code: 0 }
           }
           return { code: 0 }
@@ -388,26 +502,17 @@ const VersionListTable = observer(({ versions, isLoading }) => {
   )
 })
 
-const VersionDetail = observer(({ compId, version }) => {
+const VersionDetail = observer(({ tabId, compId, version }) => {
   const versionId = version.versionId
   const head = buildHeadOf(version)
+  const state = storeUi.tabStateGet(tabId)
+  const buildSelectedId = state?.buildRowSelectedId || ''
+  const buildSelected = (version.buildList || []).find((item) => item.buildId === buildSelectedId)
 
   return (
     <div>
       <div className="panel-title-2">
         Version <span className="cell-id">{versionId}</span>
-        {version.source?.fileGroupId && (
-          <button
-            className="icon-btn"
-            title="rebuild this version (new build record)"
-            onClick={async () => {
-              const taskId = await storeComp.versionBuild(compId, versionId)
-              if (taskId) storeTask.fetchTask(taskId)
-            }}
-          >
-            <RefreshIcon width={13} height={13} />
-          </button>
-        )}
       </div>
       <div className="field-note">
         created {version.createdAt}
@@ -417,94 +522,161 @@ const VersionDetail = observer(({ compId, version }) => {
       <div className="panel-title-2">Version Metadata (frozen)</div>
       <div className="status-json-block">{JSON.stringify(version.metadata, null, 2)}</div>
 
-      <div className="panel-title-2">Builds</div>
+      <div className="panel-title-2">Exposed Components</div>
       <div className="row-table">
         <div className="row-table-header">
-          <div className="cell" style={{ width: 110 }}>buildId</div>
-          <div className="cell" style={{ width: 110 }}>type</div>
-          <div className="cell" style={{ width: 70 }}>status</div>
-          <div className="cell" style={{ width: 50 }}>HEAD</div>
-          <div className="cell" style={{ flex: 1 }}>finishedAt</div>
-          <div className="cell" style={{ width: 110 }}>actions</div>
+          <div className="cell" style={{ width: 130 }}>exposeName</div>
+          <div className="cell" style={{ width: 180 }}>module / export</div>
+          <div className="cell" style={{ flex: 1 }}>description</div>
+          <div className="cell" style={{ width: 90 }}>packages</div>
         </div>
-        {(version.buildList || []).slice().reverse().map((build) => (
-          <BuildRow key={build.buildId} compId={compId} versionId={versionId} build={build} isHead={head?.buildId === build.buildId} />
+        {(version.metadata?.exposeList || []).map((expose) => (
+          <div className="row-table-row" key={expose.exposeName} style={{ cursor: 'default' }}>
+            <div className="cell cell-id" style={{ width: 130 }}>{expose.exposeName}</div>
+            <div className="cell cell-id" style={{ width: 180 }}>
+              {expose.modulePath} / {expose.entryExport || 'default'}
+            </div>
+            <div className="cell" style={{ flex: 1 }}>{expose.description || ''}</div>
+            <div className="cell" style={{ width: 90 }}>
+              {Object.keys(expose.packages || {}).length}
+            </div>
+          </div>
         ))}
-        {(version.buildList || []).length === 0 && (
-          <div className="row-table-row field-note">no finished builds; an ongoing build shows as an undergoing task</div>
+        {(version.metadata?.exposeList || []).length === 0 && (
+          <div className="row-table-row field-note">
+            legacy single-component metadata; see the raw metadata above
+          </div>
         )}
       </div>
 
-      <BuildExtra compId={compId} versionId={versionId} />
+      <div className="panel-title-2">Builds</div>
+      <div className="table-control-row">
+        <HorizontalButtonGroup groupId={`build-list-${tabId}`}>
+          <ControlIconItem
+            label="open"
+            isDisabled={!buildSelectedId}
+            onClick={() => {
+              if (!buildSelectedId) return
+              storeUi.pathOpen(
+                { kind: 'components', compId, versionId, buildId: buildSelectedId },
+                { tabId },
+              )
+            }}
+          >
+            <ForwardIcon width={12} height={12} />
+          </ControlIconItem>
+          <ControlIconItem
+            label="view log"
+            isDisabled={!buildSelected?.logObjectId}
+            onClick={() => {
+              if (!buildSelectedId || !buildSelected?.logObjectId) return
+              storeUi.pathOpen(
+                { kind: 'components', compId, versionId, buildId: buildSelectedId },
+                { tabId },
+              )
+            }}
+          >
+            <EyeIcon width={12} height={12} />
+          </ControlIconItem>
+        </HorizontalButtonGroup>
+      </div>
+      <BuildListTable
+        tabId={tabId}
+        compId={compId}
+        versionId={versionId}
+        builds={(version.buildList || []).slice().reverse()}
+        buildSelectedId={buildSelectedId}
+        headBuildId={head?.buildId || ''}
+      />
     </div>
   )
 })
 
-const BuildRow = observer(({ compId, versionId, build, isHead }) => {
-  const key = `${versionId}/${build.buildId}`
+const BuildListTable = observer(({ tabId, compId, versionId, builds, buildSelectedId, headBuildId }) => {
+  const rows = builds.map((build) => ({
+    id: build.buildId,
+    data: {
+      buildId: build.buildId,
+      buildType: build.buildType,
+      buildStatus: build.buildStatus,
+      isHead: headBuildId === build.buildId ? 'HEAD' : '',
+      finishedAt: build.finishedAt || '',
+    },
+  }))
+
   return (
-    <div className="row-table-row" style={{ cursor: 'default' }}>
-      <div className="cell cell-id" style={{ width: 110 }}>{build.buildId}</div>
-      <div className="cell" style={{ width: 110 }}>{build.buildType}</div>
-      <div className={`cell status-${build.buildStatus}`} style={{ width: 70 }}>
-        {BUILD_STATUS_TEXT[build.buildStatus] || build.buildStatus}
-      </div>
-      <div className="cell" style={{ width: 50 }}>{isHead ? 'HEAD' : ''}</div>
-      <div className="cell" style={{ flex: 1 }}>{build.finishedAt || ''}</div>
-      <div className="cell" style={{ width: 110 }}>
-        {build.logObjectId && (
-          <button
-            className="btn"
-            onClick={() => {
-              storeUi.toggleBuildLog(key)
-              if (storeUi.buildLogOpenKey === key) {
-                storeComp.fetchBuildLog(compId, versionId, build.buildId)
-              }
-            }}
-          >
-            log
-          </button>
-        )}{' '}
-        {build.output?.fileGroupId && (
-          <button
-            className="btn"
-            onClick={() => {
-              storeUi.toggleBuildFiles(key)
-              if (storeUi.buildFilesOpenKey === key) {
-                storeComp.fetchBuildFiles(compId, versionId, build.buildId)
-              }
-            }}
-          >
-            files
-          </button>
-        )}
-      </div>
+    <div className="comp-folder-wrap">
+      <FolderView
+        data={{
+          columns: BUILD_COLUMNS,
+          colsOrder: BUILD_COLS_ORDER,
+          rows,
+          rowIdsSelected: buildSelectedId ? [buildSelectedId] : [],
+          statusBar: { itemCount: rows.length, messageState: null },
+        }}
+        config={{
+          colSizeById: BUILD_COL_SIZE_BY_ID,
+          bodyHeight: 180,
+          isListOnly: true,
+          isStatusBarVisible: true,
+          selectionMode: 'single',
+          isLastColFilled: true,
+          compBodyByColId: (colId) => (colId === 'buildStatus' ? BuildStatusCell : undefined),
+        }}
+        onEvent={(eventType, eventData) => {
+          if (eventType === 'rowIdsSelectedChange') {
+            storeUi.tabBuildRowSelectedSet(tabId, eventData.rowIdsSelected?.[0] || '')
+            return { code: 0 }
+          }
+          if (eventType === 'rowDoubleClick') {
+            const buildId = eventData.rowId || ''
+            if (buildId) {
+              storeUi.pathOpen({ kind: 'components', compId, versionId, buildId }, { tabId })
+            }
+            return { code: 0 }
+          }
+          return { code: 0 }
+        }}
+      />
+      {rows.length === 0 && (
+        <div className="field-note comp-empty-note">no finished builds; an ongoing build shows as an undergoing task</div>
+      )}
     </div>
   )
 })
 
-// the opened log / file list below the build table
-const BuildExtra = observer(({ compId, versionId }) => {
-  const logKey = storeUi.buildLogOpenKey
-  const filesKey = storeUi.buildFilesOpenKey
-
-  const buildIdOfKey = (key) => key.split('/')[1]
+const BuildDetail = observer(({ compId, versionId, build }) => {
+  useEffect(() => {
+    if (build.logObjectId) storeComp.fetchBuildLog(compId, versionId, build.buildId)
+    if (build.output?.fileGroupId) storeComp.fetchBuildFiles(compId, versionId, build.buildId)
+  }, [compId, versionId, build.buildId, build.logObjectId, build.output?.fileGroupId])
 
   return (
-    <>
-      {logKey.startsWith(`${versionId}/`) && (
+    <div>
+      <div className="panel-title">
+        Build <span className="cell-id">{build.buildId}</span>
+        <span className={`status-${build.buildStatus}`}>
+          {BUILD_STATUS_TEXT[build.buildStatus] || build.buildStatus}
+        </span>
+      </div>
+      <div className="field-note">
+        type {build.buildType} / created {build.createdAt} / finished {build.finishedAt || ''}
+      </div>
+      <div className="panel-title-2">Build Metadata</div>
+      <div className="status-json-block">{JSON.stringify(build, null, 2)}</div>
+      {build.logObjectId && (
         <>
-          <div className="panel-title-2">Build Log <span className="cell-id">{buildIdOfKey(logKey)}</span></div>
-          <LogBlock compId={compId} versionId={versionId} buildId={buildIdOfKey(logKey)} />
+          <div className="panel-title-2">Build Log</div>
+          <LogBlock compId={compId} versionId={versionId} buildId={build.buildId} />
         </>
       )}
-      {filesKey.startsWith(`${versionId}/`) && (
+      {build.output?.fileGroupId && (
         <>
-          <div className="panel-title-2">Output Files <span className="cell-id">{buildIdOfKey(filesKey)}</span></div>
-          <FilesBlock compId={compId} versionId={versionId} buildId={buildIdOfKey(filesKey)} />
+          <div className="panel-title-2">Output Files</div>
+          <FilesBlock compId={compId} versionId={versionId} buildId={build.buildId} />
         </>
       )}
-    </>
+    </div>
   )
 })
 

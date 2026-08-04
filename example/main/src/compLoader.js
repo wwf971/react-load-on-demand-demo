@@ -8,16 +8,16 @@ export async function loadFederatedComp(compMetadata) {
     // compMetadata.compName: federation container name, matching the remote vite.config.js name.
     // compMetadata.compUrl: URL of the generated federation entry JS file.
     // compMetadata.modulePath: module path registered in the remote vite.config.js exposes map.
+    // compMetadata.entryExport: component export to select from the loaded module.
 
   // IMPORTANT: the module instance is still not fetched now.
-  const { compName, compUrl, modulePath } = compMetadata;
-  
   // container: federation container instance.
   const container = await loadRemoteEntry(compMetadata.compName, compMetadata.compUrl);
   await initFederation(container);
 
   const Module = await loadRemoteModule(container, compMetadata.modulePath);
-  return Module.default || Module;
+  const entryExport = compMetadata.entryExport || 'default';
+  return Module[entryExport] || Module.default || Module;
 }
 
 

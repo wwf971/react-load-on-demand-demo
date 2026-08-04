@@ -1,87 +1,177 @@
-// StoreUi: ui state of the manage page (fully data-driven; render components
-// hold no ui state of their own). Refer to /doc/service_manage_page.md.
+// StoreUi owns all page navigation and per-tab operation state.
 
-import { makeAutoObservable } from 'mobx'
+import { makeAutoObservable, observable } from 'mobx'
 
-export const SECTION_KEYS = [
-  { key: 'comps', label: 'Components' },
-  { key: 'tasks', label: 'Tasks' },
-  { key: 'status', label: 'Status' },
-]
+export const PATH_KIND_COMPONENTS = 'components'
+export const PATH_KIND_TASKS = 'tasks'
+export const PATH_KIND_STATUS = 'status'
+
+const pathClone = (pathData) => ({
+  kind: pathData.kind,
+  compId: pathData.compId || '',
+  versionId: pathData.versionId || '',
+  buildId: pathData.buildId || '',
+  taskId: pathData.taskId || '',
+})
+
+const tabStateCreate = () => ({
+  metadataSelectedRowId: null,
+  confirmState: null,
+  isCompCreateOpen: false,
+  isCompCreatePending: false,
+  compRowSelectedId: '',
+  versionRowSelectedId: '',
+  buildRowSelectedId: '',
+  taskRowSelectedId: '',
+})
 
 class StoreUi {
-  sectionCurrent = 'comps'
-
-  compSelectedId = ''
-  versionSelectedId = ''
-  taskSelectedId = ''
-
-  // `${versionId}/${buildId}` of the build whose log panel is open
-  buildLogOpenKey = ''
-  // `${versionId}/${buildId}` of the build whose file list is open
-  buildFilesOpenKey = ''
-
-  metadataSelectedRowId = null
-
-  // inline confirm for destructive actions (never window.confirm):
-  // null | { kind: 'comp-delete', compId }
-  confirmState = null
-
-  // whether the "new component" creation row is open, and its pending state
-  isCompCreateOpen = false
-  isCompCreatePending = false
+  tabById = observable.map()
+  tabIds = []
+  tabActiveId = ''
+  tabSequence = 0
+  sectionActive = PATH_KIND_COMPONENTS
 
   messageState = { status: 'idle', messageText: '' }
 
   constructor() {
     makeAutoObservable(this)
+    this.tabCreate({ kind: PATH_KIND_COMPONENTS })
   }
 
-  setSection(sectionKey) {
-    this.sectionCurrent = sectionKey
+  tabIdsOfSection(sectionKind) {
+    return this.tabIds.filter((tabId) => this.tabById.get(tabId)?.pathData.kind === sectionKind)
   }
 
-  selectComp(compId) {
-    this.compSelectedId = compId
-    this.versionSelectedId = ''
-    this.buildLogOpenKey = ''
-    this.buildFilesOpenKey = ''
-    this.metadataSelectedRowId = null
-    this.confirmState = null
+  sectionActiveSet(sectionKind) {
+    this.sectionActive = sectionKind
+    const tabIdsSection = this.tabIdsOfSection(sectionKind)
+    if (tabIdsSection.length === 0) {
+      this.tabCreate(this.pathRootOfSection(sectionKind))
+      return
+    }
+    if (!tabIdsSection.includes(this.tabActiveId)) {
+      this.tabActiveId = tabIdsSection[tabIdsSection.length - 1]
+    }
   }
 
-  selectVersion(versionId) {
-    this.versionSelectedId = versionId
-    this.buildLogOpenKey = ''
-    this.buildFilesOpenKey = ''
+  pathRootOfSection(sectionKind) {
+    if (sectionKind === PATH_KIND_TASKS) return { kind: PATH_KIND_TASKS }
+    if (sectionKind === PATH_KIND_STATUS) return { kind: PATH_KIND_STATUS }
+    return { kind: PATH_KIND_COMPONENTS }
   }
 
-  selectTask(taskId) {
-    this.taskSelectedId = taskId
+  tabCreate(pathData) {
+    this.tabSequence += 1
+    const tabId = `manage-tab-${this.tabSequence}`
+    this.tabById.set(tabId, {
+      tabId,
+      pathData: pathClone(pathData),
+      state: tabStateCreate(),
+    })
+    this.tabIds.push(tabId)
+    this.tabActiveId = tabId
+    this.sectionActive = pathData.kind || PATH_KIND_COMPONENTS
+    return tabId
   }
 
-  toggleBuildLog(key) {
-    this.buildLogOpenKey = this.buildLogOpenKey === key ? '' : key
+  tabActiveSet(tabId) {
+    const tab = this.tabById.get(tabId)
+    if (!tab) return
+    this.tabActiveId = tabId
+    this.sectionActive = tab.pathData.kind || PATH_KIND_COMPONENTS
   }
 
-  toggleBuildFiles(key) {
-    this.buildFilesOpenKey = this.buildFilesOpenKey === key ? '' : key
+  tabPathSet(tabId, pathData) {
+    const tab = this.tabById.get(tabId)
+    if (!tab) return
+    tab.pathData = pathClone(pathData)
+    tab.state.metadataSelectedRowId = null
+    tab.state.confirmState = null
+    tab.state.compRowSelectedId = ''
+    tab.state.versionRowSelectedId = ''
+    tab.state.buildRowSelectedId = ''
+    tab.state.taskRowSelectedId = ''
   }
 
-  setConfirm(confirmState) {
-    this.confirmState = confirmState
+  pathOpen(pathData, { isNewTab = false, tabId = this.tabActiveId } = {}) {
+    if (isNewTab || !this.tabById.has(tabId)) {
+      return this.tabCreate(pathData)
+    }
+    this.tabPathSet(tabId, pathData)
+    this.tabActiveId = tabId
+    this.sectionActive = pathData.kind || PATH_KIND_COMPONENTS
+    return tabId
   }
 
-  setMetadataSelectedRowId(rowId) {
-    this.metadataSelectedRowId = rowId
+  tabClose(tabId) {
+    const tab = this.tabById.get(tabId)
+    const sectionKind = tab?.pathData?.kind || PATH_KIND_COMPONENTS
+    const index = this.tabIds.indexOf(tabId)
+    if (index < 0) return
+    this.tabIds.splice(index, 1)
+    this.tabById.delete(tabId)
+    if (this.tabIds.length === 0) {
+      this.tabCreate(this.pathRootOfSection(sectionKind))
+      return
+    }
+    if (this.tabActiveId === tabId) {
+      this.tabActiveId = this.tabIds[Math.min(index, this.tabIds.length - 1)]
+      const tabActive = this.tabById.get(this.tabActiveId)
+      if (tabActive) this.sectionActive = tabActive.pathData.kind || PATH_KIND_COMPONENTS
+    }
+    if (this.tabIdsOfSection(sectionKind).length === 0) {
+      this.tabCreate(this.pathRootOfSection(sectionKind))
+    }
   }
 
-  setCompCreateOpen(isOpen) {
-    this.isCompCreateOpen = isOpen
+  tabsReorder(tabIds) {
+    const idsValid = tabIds.filter((tabId) => this.tabById.has(tabId))
+    if (idsValid.length === this.tabIds.length) this.tabIds = idsValid
   }
 
-  setCompCreatePending(isPending) {
-    this.isCompCreatePending = isPending
+  tabStateGet(tabId) {
+    return this.tabById.get(tabId)?.state || null
+  }
+
+  tabConfirmSet(tabId, confirmState) {
+    const state = this.tabStateGet(tabId)
+    if (state) state.confirmState = confirmState
+  }
+
+  tabMetadataRowSet(tabId, rowId) {
+    const state = this.tabStateGet(tabId)
+    if (state) state.metadataSelectedRowId = rowId
+  }
+
+  tabCompCreateOpenSet(tabId, isOpen) {
+    const state = this.tabStateGet(tabId)
+    if (state) state.isCompCreateOpen = isOpen
+  }
+
+  tabCompCreatePendingSet(tabId, isPending) {
+    const state = this.tabStateGet(tabId)
+    if (state) state.isCompCreatePending = isPending
+  }
+
+  tabCompRowSelectedSet(tabId, compId) {
+    const state = this.tabStateGet(tabId)
+    if (state) state.compRowSelectedId = compId || ''
+  }
+
+  tabVersionRowSelectedSet(tabId, versionId) {
+    const state = this.tabStateGet(tabId)
+    if (state) state.versionRowSelectedId = versionId || ''
+  }
+
+  tabBuildRowSelectedSet(tabId, buildId) {
+    const state = this.tabStateGet(tabId)
+    if (state) state.buildRowSelectedId = buildId || ''
+  }
+
+  tabTaskRowSelectedSet(tabId, taskId) {
+    const state = this.tabStateGet(tabId)
+    if (state) state.taskRowSelectedId = taskId || ''
   }
 
   setMessage(status, messageText) {

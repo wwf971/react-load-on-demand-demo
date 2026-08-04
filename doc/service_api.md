@@ -4,7 +4,7 @@
 
 All `/api/...` endpoints return:
 
-```json
+```jsonc
 {
   "code": 0,
   "data": {},
@@ -84,27 +84,67 @@ One endpoint serves both upsert patterns:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/comp/resolve` | load info by `compName` or `compId`; optional `versionId`, default = latest servable version |
+| GET | `/api/comp/resolve` | load info by `compName` or `compId`; optional `versionId` and `exposeName` |
 
-Resolve serves from the build HEAD of the picked version (newest successful build, refer to [service_resource.md](./service_resource.md#build-head)). Without `versionId`, versions whose HEAD is null are skipped. With a pinned `versionId` whose HEAD is null, or when no version is servable at all, resolve fails with `code < 0`.
+Resolve serves from the build HEAD of the picked version (newest successful build, refer to [service_resource.md](./service_resource.md#build-head)). Without `versionId`, versions whose HEAD is null are skipped. Without `exposeName`, the version's `exposeDefaultName` is selected, or the first exposed component when no default is set.
 
 Response `data`:
 
 ```jsonc
 {
   "compId": "a1b2c3d4e5f6",
+  "compName": "user-components",
   "versionId": "m3kfj29a0x1",
+  "versionName": "1.2.0",
   "containerName": "userCardApp",
-  "modulePath": "./user-card",
-  "entryExport": "default",
   "urlEntry": "/comp-file/a1b2c3d4e5f6/m3kfj29a0x1/UserCard.js",
+  "exposeName": "user-card",
+  "modulePath": "./user-components",
+  "entryExport": "default",
+  "description": "display one user",
+  "props": {
+    "data": { "type": "object", "description": "user data to render" }
+  },
   "packages": {
     "react": { "versionRequired": "^19.2.0", "isShared": true }
-  }
+  },
+  "exposeList": [
+    {
+      "exposeName": "user-card",
+      "modulePath": "./user-components",
+      "entryExport": "default",
+      "description": "display one user",
+      "props": {},
+      "packages": {}
+    },
+    {
+      "exposeName": "user-avatar",
+      "modulePath": "./user-components",
+      "entryExport": "UserAvatar",
+      "description": "display the user's avatar",
+      "props": {},
+      "packages": {}
+    }
+  ]
 }
 ```
 
-This is everything a host needs: `import(urlEntry)`, `container.init(sharedPackages)`, `container.get(modulePath)`. `packages` lets the host check what it should provide before loading.
+The selected component fields are repeated at the top level so a host can load it directly. `exposeList` lets the host discover the other components available from the same remote entry and version.
+
+Typical requests:
+
+```text
+GET /api/comp/resolve?compName=user-components
+  -> resolve default exposed component from latest servable version
+
+GET /api/comp/resolve?compName=user-components&exposeName=user-avatar
+  -> resolve user-avatar from latest servable version
+
+GET /api/comp/resolve?compId=...&versionId=...&exposeName=user-avatar
+  -> resolve one exact exposed component from one exact version
+```
+
+This is everything a host needs: `import(urlEntry)`, `container.init(sharedPackages)`, `container.get(modulePath)`, then select `Module[entryExport]`. `packages` tells the host what the selected component expects.
 
 ## Component File Serving
 

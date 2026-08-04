@@ -20,8 +20,8 @@ docker/
       build-comp/          Vite scaffold the task runner copies into each pattern-1 build
     manage-page/           Vite + React + MobX manage frontend (built into docker/data/manage-page)
   comp-demo/
-    comp-source/           authoring template for pattern 1 (service builds)
-    comp-prebuilt/         authoring template for pattern 2 (upload prebuilt)
+    comp-source/           authoring example for pattern 1 (service builds)
+    comp-prebuilt/         authoring example for pattern 2 (upload prebuilt)
 ```
 
 ## Run

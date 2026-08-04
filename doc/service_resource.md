@@ -2,6 +2,23 @@
 
 This document defines the exact shape of the three resource records (component, version, build) and the metadata standards. For where these records physically live, refer to [service_storage.md](./service_storage.md).
 
+## Record Hierarchy at a Glance
+
+```text
+component record
+  compId + compName + editable component metadata
+  versionList
+    -> version record
+       versionId + frozen version metadata + frozen source
+       exposeList in metadata
+         -> one definition for each exposed React component
+       buildList
+         -> build record
+            buildId + status + log + output
+```
+
+The component is the stable remote-entry identity. A version is one frozen release of it. A build is one attempt to turn that exact version into files. Exposed React components are definitions inside version metadata; they are not separate component records.
+
 ## Id Formats
 
 - `compId`: random string of `0-9 a-z`, no semantic prefix or suffix.
@@ -103,37 +120,67 @@ Metadata at every level is one JSON object. Standard entries have fixed names an
 {
   "schemaVersion": 1,
   "versionName": "1.2.0",           // optional display label; versionId stays the real order
-  "description": "one-line summary of what this version does",
+  "description": "this release of the user component collection",
   "document": "## markdown text",   // optional detailed document, markdown string
-  "props": {                        // input prop shape, keyed by prop name
-    "data": { "type": "object", "description": "content to render" },
-    "config": { "type": "object", "description": "operation state such as isLocked" },
-    "onEvent": { "type": "function", "description": "unified change-attempt callback" }
-  },
-  "packages": {                     // packages this version depends on
-    "react": { "versionRequired": "^19.2.0", "isShared": true },
-    "mobx": { "versionRequired": "^6.0.0", "isShared": true },
-    "dayjs": { "versionRequired": "^1.11.13", "isShared": false }
-  },
-  "federation": {                   // what the host needs for runtime loading
+  "exposeDefaultName": "user-card",
+  "federation": {                   // settings shared by the whole remote entry
     "containerName": "userCardApp",
-    "fileEntry": "UserCard.js",     // remote entry file name inside build output
-    "fileEntrySource": "src/entry.jsx",  // source file exposed as modulePath; used by pattern 1 build
-    "modulePath": "./user-card",
-    "entryExport": "default"
-  }
+    "fileEntry": "UserCard.js"
+  },
+  "exposeList": [
+    {
+      "exposeName": "user-card",
+      "description": "display one user",
+      "document": "## markdown text",       // optional component-specific document
+      "modulePath": "./user-components",
+      "fileEntrySource": "src/entry.jsx",   // required when the service builds source
+      "entryExport": "default",
+      "props": {
+        "data": { "type": "object", "description": "user data to render" },
+        "config": { "type": "object", "description": "operation state; optional" },
+        "onEvent": { "type": "function", "description": "change-attempt callback; optional" }
+      },
+      "packages": {
+        "react": { "versionRequired": "^19.2.0", "isShared": true },
+        "mobx": { "versionRequired": "^6.0.0", "isShared": true },
+        "dayjs": { "versionRequired": "^1.11.13", "isShared": false }
+      }
+    },
+    {
+      "exposeName": "user-avatar",
+      "description": "display the user's avatar",
+      "modulePath": "./user-components",
+      "fileEntrySource": "src/entry.jsx",
+      "entryExport": "UserAvatar",
+      "props": {
+        "url": { "type": "string", "description": "image URL" }
+      },
+      "packages": {
+        "react": { "versionRequired": "^19.2.0", "isShared": true }
+      }
+    }
+  ]
 }
 ```
 
 Entry semantics:
 
-- `props`: informal shape description for humans and tools. Each entry has `type` (string) and `description`; nested `props` is allowed for object props. It is documentation, not runtime validation.
-- `packages`: `versionRequired` uses semver range syntax and must equal the federation `requiredVersion` used at build time. `isShared: true` means the version expects the host to provide this package through `container.init(...)`; this is what lets a host's mobx store instance be reused instead of re-fetched. `isShared: false` means the package is bundled into the build output.
-- `federation`: mirrors the remote build config, so `GET /api/comp/resolve` can answer from metadata alone. `containerName` is the federation container name (called `compName` in the demo doc; renamed here to avoid clashing with the service-level `compName`).
+- `exposeDefaultName`: exposed component selected when `/api/comp/resolve` does not receive `exposeName`. When omitted, the first item is the default.
+- `federation`: names the one remote entry generated for the version. `containerName` is the Module Federation container name. `fileEntry` is its generated entry file.
+- `exposeList`: one item per React component that hosts can select. `exposeName` must be unique.
+- `modulePath`: module registered in the remote entry. Several exposed components may use the same module path.
+- `entryExport`: export selected from that module. Use `default` or a named export such as `UserAvatar`.
+- `fileEntrySource`: source module registered as `modulePath` during a service build. When two items share a module path, they must name the same source file.
+- `props`: informal input shape for humans and tools. It is documentation, not runtime validation. Each prop normally has `type`, `description`, and optional nested `props`.
+- `packages`: requirements of this exact exposed component. `versionRequired` is a semver range. `isShared: true` asks the host to provide the package through `container.init(...)`; `isShared: false` bundles it into the remote build.
 
-For pattern 1 (service builds), `packages` and `federation` decide the generated build config, so metadata and build output cannot disagree. For pattern 2 (upload-prebuilt), the uploader must keep them consistent with how the files were built.
+The service combines package requirements from all items when it builds the remote entry. If two exposed components use the same package, their `versionRequired` and `isShared` values must match. This explicit rule avoids an unclear container-level package requirement.
 
-### Comp Metadata
+For pattern 1 (service builds), `exposeList` and `federation` generate the build config. For pattern 2 (upload-prebuilt), the uploader must keep them consistent with the uploaded build.
+
+Older records with one component under `metadata.federation.modulePath` remain readable as one legacy exposed component.
+
+### Component Metadata
 
 ```jsonc
 {

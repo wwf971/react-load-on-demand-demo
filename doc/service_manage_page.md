@@ -4,34 +4,37 @@ Vite + React + MobX frontend, built and served by the service (served under `/ma
 
 ## Layout
 
-Left navigation + main panel:
+The page uses draggable top tabs. Every tab has its own virtual path:
 
 ```text
-+------------+---------------------------------------------+
-| Components | main panel of the selected section          |
-| Tasks      |                                             |
-| Status     |                                             |
-+------------+---------------------------------------------+
+tabs: [Components] [hello-components] [versionId] [Tasks]
+
+active tab:
+  hello-components(compId) / versionId / buildId /
+  -------------------------------------------------
+  content for exactly that path
 ```
 
-- Components section:
+Component paths:
 
 ```text
-component list (table: compName, description, tags, version count)
-  -> select one component
-      component detail
-        comp metadata (editable key/values)
-        version list (versionId, versionName, servable or not, build count)
-          -> select one version
-              version detail
-                version metadata (read-only; versions are frozen)
-                build list (buildId, buildType, buildStatus)
-                  -> view build log
-                file list of newest successful output (path, size, url)
+/                                             list all components
+compName(compId) /                            component metadata + all versions
+compName(compId) / versionId /                frozen version metadata + all builds
+compName(compId) / versionId / buildId /      build metadata + log + output files
 ```
 
-- Tasks section: task table (taskId, comp/version, taskStatus, latest message), live-updating over websocket; select one task to see full `progressList` and result/exit info; cancel button for undergoing tasks.
-- Status section: service metadata, counters from `/api/service/status`, storage-obj reachability.
+Selecting a component, version or build changes the path in the current tab. Clicking a path segment returns to that exact parent level. `Ctrl+click` or `Cmd+click` on a path segment opens the target path in a new tab and focuses it.
+
+Tabs may have duplicate paths. They remain separate views with separate operation state, but they observe the same resource records.
+
+Other paths:
+
+```text
+Tasks /             task list, live-updating over websocket
+Tasks / taskId /    task progress, result and cancel action
+Status /            service status and storage reachability
+```
 
 Layout rules (from project frontend rules): hierarchy shown by title size and divider lines, not card-in-card nesting; single edit/refresh icons sit next to the related title text; button groups occupy their own row, aligned left; log/json areas use non-serif font and selectable text.
 
@@ -40,17 +43,25 @@ Layout rules (from project frontend rules): hierarchy shown by title size and di
 The page is fully data-driven: MobX stores are the source of truth for both resource data and ui state. Render components receive `data` / `config` / `onEvent` props and never call the server themselves.
 
 ```text
-storeComp       comp records keyed by compId; version records keyed by versionId;
-                fetch/create/update actions
+storeComp       comp records keyed by compId; versions keyed by compId/versionId;
+                build log/files keyed by compId/versionId/buildId;
+                fetch/create/update/build actions shared by every tab
 storeTask       task records keyed by taskId; owns the websocket connection;
                 applies pushed progress into records in place (observers re-render)
 storeService    service status data
-storeUi         ui state keyed by component instance id:
-                selected compId / versionId / taskId, active section,
-                expanded rows, edit mode and pending state of editors
+storeUi         ordered tab ids, active tab id, path and operation state per tab
 ```
 
-Ui state examples that must live in `storeUi`, not in local component state: which table row is selected, whether comp metadata is in edit mode, whether a change request is pending server confirmation.
+Semantic records are shared:
+
+```text
+tab A at component/version
+tab B at the same component/version
+  -> both read the same observable version record in storeComp
+  -> one store update changes both views automatically
+```
+
+Operation state is not shared accidentally. Metadata-row selection, inline confirmation and create-editor pending state live under each `tabId` in `storeUi`.
 
 ## Editing
 

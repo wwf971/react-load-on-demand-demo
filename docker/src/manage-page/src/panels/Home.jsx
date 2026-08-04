@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
 import { observer } from 'mobx-react-lite'
-import { RefreshIcon, SpinningCircle } from '@wwf971/react-comp-misc'
+import { RefreshIcon } from '@wwf971/react-comp-misc'
 import { storeService } from '../storeService.js'
+import TitleIconAction from '../TitleIconAction.jsx'
 
 const Home = observer(() => {
   useEffect(() => {
@@ -15,9 +16,12 @@ const Home = observer(() => {
     <div>
       <div className="panel-title">
         Service Status
-        <button className="icon-btn" title="refresh" onClick={() => storeService.fetchStatus()}>
-          {storeService.isLoading ? <SpinningCircle width={14} height={14} /> : <RefreshIcon width={14} height={14} />}
-        </button>
+        <TitleIconAction
+          title="refresh"
+          isLoading={storeService.isLoading}
+          onClick={() => storeService.fetchStatus()}
+          icon={<RefreshIcon width={14} height={14} />}
+        />
       </div>
 
       {isInitialLoading && <div className="field-note">loading...</div>}

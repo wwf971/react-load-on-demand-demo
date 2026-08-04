@@ -7,6 +7,7 @@
 import path from 'node:path'
 import { newIdRandom, newIdMs48, idMs48ToStampMs } from './id.js'
 import { timeNow } from './time.js'
+import { exposeSelect, versionMetadataAnalyze } from './versionMetadata.js'
 
 const SPACE_ROLES = ['service', 'comp', 'version', 'file', 'log', 'task', 'outbox']
 
@@ -447,7 +448,7 @@ export class ResourceService {
     return `/comp-file/${compId}/${versionId}/${entry.path}`
   }
 
-  async resolve({ compId, compName, versionId }) {
+  async resolve({ compId, compName, versionId, exposeName }) {
     let compRecord = null
     if (compId) {
       const found = await this.compRecordGet(compId)
@@ -481,7 +482,10 @@ export class ResourceService {
       if (!versionRecord) throw new Error('component has no servable version')
     }
 
-    const federation = versionRecord.metadata?.federation || {}
+    const metadata = versionRecord.metadata || {}
+    const metadataInfo = versionMetadataAnalyze(metadata)
+    const federation = metadataInfo.federation
+    const expose = exposeSelect(metadataInfo, exposeName)
     const urlEntry = await this.buildHeadEntryUrl(
       compRecord.compId,
       versionRecord.versionId,
@@ -490,12 +494,25 @@ export class ResourceService {
     )
     return {
       compId: compRecord.compId,
+      compName: compRecord.compName,
       versionId: versionRecord.versionId,
+      versionName: metadata.versionName || '',
       containerName: federation.containerName,
-      modulePath: federation.modulePath,
-      entryExport: federation.entryExport || 'default',
       urlEntry,
-      packages: versionRecord.metadata?.packages || {},
+      exposeName: expose.exposeName,
+      modulePath: expose.modulePath,
+      entryExport: expose.entryExport || 'default',
+      description: expose.description || '',
+      props: expose.props || {},
+      packages: expose.packages || {},
+      exposeList: metadataInfo.exposeList.map((item) => ({
+        exposeName: item.exposeName,
+        description: item.description || '',
+        modulePath: item.modulePath,
+        entryExport: item.entryExport || 'default',
+        props: item.props || {},
+        packages: item.packages || {},
+      })),
     }
   }
 

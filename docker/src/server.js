@@ -10,6 +10,7 @@ import { TaskRunner } from './backend/taskRunner.js'
 import { WsHub } from './backend/wsHub.js'
 import { newIdMs48 } from './backend/id.js'
 import { timeNow } from './backend/time.js'
+import { versionMetadataAnalyze } from './backend/versionMetadata.js'
 
 const config = loadConfig()
 const app = Fastify({ logger: true })
@@ -78,14 +79,6 @@ const validateFileList = (fileList, name) => {
     if (file.contentBase64 === undefined && file.contentText === undefined) {
       throw new Error(`${name} entry needs contentBase64 or contentText: ${file.path}`)
     }
-  }
-}
-
-const validateVersionMetadata = (metadata) => {
-  if (!metadata || typeof metadata !== 'object') throw new Error('metadata is required')
-  const federation = metadata.federation
-  if (!federation?.containerName || !federation?.fileEntry || !federation?.modulePath) {
-    throw new Error('metadata.federation needs containerName, fileEntry, modulePath')
   }
 }
 
@@ -248,10 +241,11 @@ app.post(
   wrap(async (request) => {
     const body = request.body || {}
     const compId = requireField(body.compId, 'compId')
-    validateVersionMetadata(body.metadata)
-    const federation = body.metadata.federation
+    const isPrebuilt = Boolean(body.outputFileList)
+    const metadataInfo = versionMetadataAnalyze(body.metadata, { isSourceBuild: !isPrebuilt })
+    const federation = metadataInfo.federation
 
-    if (body.outputFileList) {
+    if (isPrebuilt) {
       // pattern 2: upload prebuilt; the version is servable immediately
       validateFileList(body.outputFileList, 'outputFileList')
       const isEntryFound = body.outputFileList.some(
@@ -290,12 +284,11 @@ app.post(
 
     // pattern 1: service builds through a backend task
     validateFileList(body.sourceFileList, 'sourceFileList')
-    if (!federation.fileEntrySource) {
-      throw new Error('metadata.federation.fileEntrySource is required for service build')
-    }
-    const isEntrySourceFound = body.sourceFileList.some((f) => f.path === federation.fileEntrySource)
-    if (!isEntrySourceFound) {
-      throw new Error(`fileEntrySource not in sourceFileList: ${federation.fileEntrySource}`)
+    const pathSourceSet = new Set(body.sourceFileList.map((file) => file.path))
+    for (const fileEntrySource of metadataInfo.sourceByModulePath.values()) {
+      if (!pathSourceSet.has(fileEntrySource)) {
+        throw new Error(`fileEntrySource not in sourceFileList: ${fileEntrySource}`)
+      }
     }
     const sourceGroup = await resource.fileGroupCreate(body.sourceFileList)
     const record = await resource.versionCreate({
@@ -393,9 +386,9 @@ app.get(
 app.get(
   '/api/comp/resolve',
   wrap(async (request) => {
-    const { compId = '', compName = '', versionId = '' } = request.query
+    const { compId = '', compName = '', versionId = '', exposeName = '' } = request.query
     if (!compId && !compName) throw new Error('compId or compName is required')
-    const data = await resource.resolve({ compId, compName, versionId })
+    const data = await resource.resolve({ compId, compName, versionId, exposeName })
     return ok(data)
   }),
 )

@@ -23,6 +23,7 @@ class StoreComp {
   isCompsLoading = false
 
   versionListByCompId = observable.map() // compId -> version record array (newest first)
+  versionByKey = observable.map() // `${compId}/${versionId}` -> version record
   isVersionsLoadingByCompId = observable.map()
 
   buildLogByKey = observable.map() // buildKey -> { isLoading, logText }
@@ -58,7 +59,28 @@ class StoreComp {
         return
       }
       this.versionListByCompId.set(compId, result.data.versions)
+      for (const record of result.data.versions) {
+        this.versionByKey.set(`${compId}/${record.versionId}`, record)
+      }
     })
+  }
+
+  async fetchVersion(compId, versionId) {
+    const result = await apiGet(
+      `/api/comp/version/get?compId=${encodeURIComponent(compId)}&versionId=${encodeURIComponent(versionId)}`,
+    )
+    runInAction(() => {
+      if (result.code === 0) {
+        this.versionByKey.set(`${compId}/${versionId}`, result.data)
+      } else {
+        storeUi.setMessage('error', result.message || 'failed to load version')
+      }
+    })
+    return result
+  }
+
+  versionGet(compId, versionId) {
+    return this.versionByKey.get(`${compId}/${versionId}`) || null
   }
 
   async compCreate(compName) {
@@ -90,11 +112,11 @@ class StoreComp {
     const result = await apiPost('/api/comp/delete', { compId })
     if (result.code !== 0) {
       storeUi.setMessage('error', result.message || 'delete failed')
-      return
+      return result
     }
-    storeUi.selectComp('')
     await this.fetchComps()
     storeUi.setMessage('success', 'component deleted')
+    return result
   }
 
   // queue a rebuild; returns taskId or null

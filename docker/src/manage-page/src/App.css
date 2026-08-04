@@ -8,6 +8,46 @@
 .app-body {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.section-workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.section-workspace > .tabs-on-top-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.section-workspace > .tabs-on-top-container > .tabs-on-top-content {
+  flex: 1;
+  min-height: 0;
+}
+
+.app-body > .tabs-on-top-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-body > .tabs-on-top-container > .tabs-on-top-content {
+  flex: 1;
+  min-height: 0;
+}
+
+.manage-tab,
+.tab-panel {
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 .app-nav {
@@ -34,7 +74,7 @@
 }
 
 .app-main {
-  height: 100%;
+  height: calc(100% - 32px);
   overflow-y: auto;
   box-sizing: border-box;
   padding: 6px 10px;
@@ -60,6 +100,14 @@
   margin: 4px 0 2px 0;
 }
 
+.panel-title-main,
+.panel-title-2-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
 .panel-divider {
   border: none;
   border-top: 1px solid #ddd;
@@ -78,6 +126,105 @@
 
 .icon-btn:hover {
   color: #000;
+}
+
+.table-control-row {
+  display: flex;
+  align-items: center;
+  margin: 2px 0 4px 0;
+}
+
+.horizontal-button-group-viewport {
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.horizontal-button-group-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.control-icon-item {
+  display: inline-flex;
+  align-items: center;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.control-icon-item.has-label {
+  gap: 4px;
+  padding: 2px 7px;
+  min-height: 24px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  color: #17305f;
+  background: #eaf1fd;
+  border: 1px solid #abc0e0;
+  border-radius: 3px;
+  box-sizing: border-box;
+}
+
+.control-icon-item.has-label:hover:not(.is-disabled) {
+  background: #dce8fa;
+}
+
+.control-icon-item.is-icon-only {
+  justify-content: center;
+  padding: 1px;
+  cursor: pointer;
+  color: #555;
+  border: none;
+  background: none;
+}
+
+.control-icon-item.is-icon-only:hover:not(.is-disabled) {
+  color: #000;
+}
+
+.control-icon-item.is-disabled.has-label {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.control-icon-item.is-disabled.is-icon-only {
+  color: #bbb;
+  cursor: default;
+}
+
+.control-icon-item.is-danger.has-label:not(.is-disabled) {
+  color: #9e2f2f;
+  background: #fff3f3;
+  border-color: #efbebe;
+}
+
+.control-icon-item.is-danger.has-label:not(.is-disabled):hover {
+  background: #ffe8e8;
+}
+
+.control-icon-item.is-danger.is-icon-only:not(.is-disabled) {
+  color: #9e2f2f;
+}
+
+.control-icon-item-graphic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  flex-shrink: 0;
+}
+
+.control-icon-item-graphic svg {
+  display: block;
+}
+
+.control-icon-item-label {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 /* control button groups: own row, aligned left */
@@ -156,7 +303,7 @@
 }
 
 .cell-id {
-  font-family: ui-monospace, monospace;
+  font-family: ui-sans-serif, system-ui, sans-serif;
   color: #666;
 }
 
@@ -195,7 +342,7 @@
 }
 
 .status-json-block {
-  font-family: system-ui, sans-serif;
+  font-family: ui-monospace, monospace;
   font-size: 12px;
   background: #f7f7f7;
   border: 1px solid #ddd;
@@ -305,5 +452,37 @@
 
   .btn:hover {
     background: #2a2a2a;
+  }
+
+  .control-icon-item.has-label {
+    color: #b8cce8;
+    background: #1a2438;
+    border-color: #3a5080;
+  }
+
+  .control-icon-item.has-label:hover:not(.is-disabled) {
+    background: #22304a;
+  }
+
+  .control-icon-item.is-disabled.has-label {
+    opacity: 0.55;
+  }
+
+  .control-icon-item.is-danger.has-label:not(.is-disabled) {
+    color: #e8a0a0;
+    background: #2a1818;
+    border-color: #6a4040;
+  }
+
+  .control-icon-item.is-danger.has-label:not(.is-disabled):hover {
+    background: #331f1f;
+  }
+
+  .control-icon-item.is-icon-only {
+    color: #aaa;
+  }
+
+  .control-icon-item.is-icon-only:hover:not(.is-disabled) {
+    color: #ddd;
   }
 }

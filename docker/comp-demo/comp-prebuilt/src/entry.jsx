@@ -9,4 +9,9 @@ function HelloCard({ data }) {
   )
 }
 
+function HelloBadge({ text, tone = 'info' }) {
+  return <span className={`hello-badge hello-badge-${tone}`}>{text || 'badge'}</span>
+}
+
 export default HelloCard
+export { HelloBadge }

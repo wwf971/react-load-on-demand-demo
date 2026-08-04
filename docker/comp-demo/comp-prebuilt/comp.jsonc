@@ -6,28 +6,49 @@
 {
   "service": { "urlSubmit": "http://127.0.0.1:9415" },
 
-  "compName": "hello-card",
+  "compName": "hello-components",
 
-  // must stay consistent with vite.config.js (containerName = federation name,
-  // fileEntry = federation filename, modulePath = key in exposes)
+  // federation and exposeList must stay consistent with vite.config.js
   "metadata": {
     "schemaVersion": 1,
     "versionName": "0.0.1",
-    "description": "sample hello card component, built locally",
-    "props": {
-      "data": { "type": "object", "description": "content to render" }
-    },
-    "packages": {
-      "react": { "versionRequired": "^19.2.0", "isShared": true },
-      "react-dom": { "versionRequired": "^19.2.0", "isShared": true }
-    },
+    "description": "sample remote entry with a card and a badge, built locally",
+    "exposeDefaultName": "hello-card",
     "federation": {
       "containerName": "helloCardApp",
-      "fileEntry": "HelloCard.js",
-      "fileEntrySource": "src/entry.jsx",
-      "modulePath": "./hello-card",
-      "entryExport": "default"
-    }
+      "fileEntry": "HelloCard.js"
+    },
+    "exposeList": [
+      {
+        "exposeName": "hello-card",
+        "description": "card with a title and body text",
+        "modulePath": "./hello-components",
+        "fileEntrySource": "src/entry.jsx",
+        "entryExport": "default",
+        "props": {
+          "data": { "type": "object", "description": "title and text to render" }
+        },
+        "packages": {
+          "react": { "versionRequired": "^19.2.0", "isShared": true },
+          "react-dom": { "versionRequired": "^19.2.0", "isShared": true }
+        }
+      },
+      {
+        "exposeName": "hello-badge",
+        "description": "small status badge",
+        "modulePath": "./hello-components",
+        "fileEntrySource": "src/entry.jsx",
+        "entryExport": "HelloBadge",
+        "props": {
+          "text": { "type": "string", "description": "badge text" },
+          "tone": { "type": "string", "description": "info or success; optional" }
+        },
+        "packages": {
+          "react": { "versionRequired": "^19.2.0", "isShared": true },
+          "react-dom": { "versionRequired": "^19.2.0", "isShared": true }
+        }
+      }
+    ]
   },
 
   // pattern 2: files under this folder are submitted as outputFileList,

@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import federation from '@originjs/vite-plugin-federation'
 
-// Keep this config consistent with metadata.federation and metadata.packages
+// Keep this config consistent with metadata.federation and metadata.exposeList
 // in ./comp.jsonc; for prebuilt upload the uploader owns that consistency.
 export default defineConfig({
   plugins: [
@@ -11,7 +11,7 @@ export default defineConfig({
       name: 'helloCardApp',
       filename: 'HelloCard.js',
       exposes: {
-        './hello-card': './src/entry.jsx',
+        './hello-components': './src/entry.jsx',
       },
       shared: {
         react: {

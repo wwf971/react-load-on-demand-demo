@@ -29,7 +29,7 @@ If the build fails, the version stays (source is already frozen and stored). Fix
 ## Pattern 2: Upload Prebuilt Files
 
 ```text
-build locally (template project below)
+build locally (example project below)
 POST /api/comp/version/create {compId, metadata, outputFileList}
   -> service validates files against metadata.federation
   -> output file group -> version record (with the successful upload-prebuilt
@@ -46,9 +46,16 @@ Both patterns can be driven from a local project folder by a submit script, so c
 ```jsonc
 {
   "service": { "urlSubmit": "http://127.0.0.1:9415" },
-  "compName": "user-card",          // resolved to compId via /api/comp/find-by-name;
-                                    // component is created first when missing
-  "metadata": { /* version metadata, refer to service_resource.md */ },
+  "compName": "user-components",    // resolved to compId; created when missing
+  "metadata": {
+    "versionName": "1.0.0",
+    "federation": { "containerName": "userApp", "fileEntry": "User.js" },
+    "exposeDefaultName": "user-card",
+    "exposeList": [
+      { "exposeName": "user-card", /* module, export, props, packages */ },
+      { "exposeName": "user-avatar", /* module, export, props, packages */ }
+    ]
+  },
   "source": { "dir": "src" },       // pattern 1: folder submitted as sourceFileList
   "output": { "dir": "dist" }       // pattern 2: folder submitted as outputFileList
 }
@@ -67,7 +74,7 @@ submit script
 The script exists in two equal flavors, use whichever fits the local toolchain:
 
 - python: `script/submit_comp.py <folder>` (works for both patterns)
-- node (pnpm): `pnpm run submit` in the `comp-prebuilt/` template project
+- node (pnpm): `pnpm run submit` in the `comp-prebuilt/` example project
 
 ## Example Component Projects
 
@@ -81,14 +88,15 @@ comp-demo/
 
 How to run each example (commands, prerequisites, resolve check): [service_example.md](./service_example.md).
 
-For pattern 2 the uploader owns consistency: `metadata.federation` (containerName, fileEntry, modulePath) and `metadata.packages` in `comp.jsonc` must match `vite.config.js`.
+For pattern 2 the uploader owns consistency: `metadata.federation` and every module/package requirement in `metadata.exposeList` must match `vite.config.js`.
 
 ## Consume from Another Service
 
 ```text
-search:   GET /api/comp/list?name=card&tag=dashboard
-resolve:  GET /api/comp/resolve?compName=user-card          latest servable version
-load:     import(urlEntry) -> container.init(sharedPackages) -> container.get(modulePath)
+search:   GET /api/comp/list?name=user&tag=dashboard
+resolve:  GET /api/comp/resolve?compName=user-components&exposeName=user-avatar
+load:     import(urlEntry) -> container.init(sharedPackages)
+          -> container.get(modulePath) -> Module[entryExport]
 ```
 
 Hosts should pin `versionId` when reproducibility matters (file urls are immutable), or omit it to follow the latest version.
