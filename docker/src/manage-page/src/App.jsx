@@ -22,7 +22,7 @@ import './App.css'
 const SECTION_LIST = [
   { key: 'section-components', kind: PATH_KIND_COMPONENTS, label: 'Components' },
   { key: 'section-tasks', kind: PATH_KIND_TASKS, label: 'Tasks' },
-  { key: 'section-status', kind: PATH_KIND_STATUS, label: 'Status' },
+  { key: 'section-status', kind: PATH_KIND_STATUS, label: 'Config' },
 ]
 
 const sectionKeyOf = (sectionKind) => `section-${sectionKind}`
@@ -126,7 +126,7 @@ const ManageTab = observer(({ tabId }) => {
 })
 
 const tabLabelOf = (pathData) => {
-  if (pathData.kind === PATH_KIND_STATUS) return 'Status'
+  if (pathData.kind === PATH_KIND_STATUS) return 'Config'
   if (pathData.kind === PATH_KIND_TASKS) return pathData.taskId || 'Tasks'
   if (pathData.buildId) return pathData.buildId
   if (pathData.versionId) return pathData.versionId
@@ -138,7 +138,7 @@ const tabLabelOf = (pathData) => {
 
 const pathSegmentsOf = (pathData) => {
   if (pathData.kind === PATH_KIND_STATUS) {
-    return [{ id: 'status', name: 'Status' }]
+    return [{ id: 'status', name: 'Config' }]
   }
   if (pathData.kind === PATH_KIND_TASKS) {
     const segments = [{ id: 'tasks', name: 'Tasks' }]

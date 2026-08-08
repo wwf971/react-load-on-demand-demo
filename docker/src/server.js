@@ -34,7 +34,7 @@ const client = new StorageObjClient({
   storageEndpointKey: config.storage_obj.storage_endpoint_key,
 })
 const wsHub = new WsHub()
-const resource = new ResourceService({ client, spacePrefix: config.storage_obj.space_prefix })
+const resource = new ResourceService({ client, spaceName: config.storage_obj.space_name })
 const tasks = new TaskService({ client, resource, wsHub })
 const runner = new TaskRunner({ config, resource, tasks })
 
@@ -86,16 +86,29 @@ const validateFileList = (fileList, name) => {
 
 app.get('/api/health/ping', async () => ok({ status: 'ok' }))
 
+const storageStatusGet = async () => {
+  const storage = {
+    urlBase: config.storage_obj.url_base,
+    storageEndpointKey: config.storage_obj.storage_endpoint_key,
+    spaceName: config.storage_obj.space_name,
+    isReachable: false,
+    inspection: null,
+    inspectionError: '',
+  }
+  try {
+    await client.healthPing()
+    storage.isReachable = true
+    storage.inspection = await resource.storageInspect()
+  } catch (error) {
+    storage.inspectionError = error instanceof Error ? error.message : String(error)
+  }
+  return storage
+}
+
 // Available even when storage-obj init has not finished, so the manage page
 // can show readiness instead of sticking on loading.
 app.get('/api/service/status', async () => {
-  let isStorageReachable = false
-  try {
-    await client.healthPing()
-    isStorageReachable = true
-  } catch {
-    isStorageReachable = false
-  }
+  const storage = await storageStatusGet()
 
   if (!serviceState.isReady) {
     return ok({
@@ -106,11 +119,7 @@ app.get('/api/service/status', async () => {
       versionCount: 0,
       taskCount: 0,
       taskCountUndergoing: 0,
-      storage: {
-        urlBase: config.storage_obj.url_base,
-        spacePrefix: config.storage_obj.space_prefix,
-        isReachable: isStorageReachable,
-      },
+      storage,
       timeNow: timeNow(),
     })
   }
@@ -132,11 +141,7 @@ app.get('/api/service/status', async () => {
       versionCount,
       taskCount: taskRecords.length,
       taskCountUndergoing: taskRecords.filter((t) => t.taskStatus === TASK_STATUS_UNDERGOING).length,
-      storage: {
-        urlBase: config.storage_obj.url_base,
-        spacePrefix: config.storage_obj.space_prefix,
-        isReachable: isStorageReachable,
-      },
+      storage,
       timeNow: timeNow(),
     })
   } catch (error) {

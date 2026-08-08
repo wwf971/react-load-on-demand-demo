@@ -68,7 +68,7 @@ Refer to [service_resource.md](./service_resource.md#metadata-standards) for ent
 
 ## Storage
 
-All resource records and files are stored in `storage-obj`. The service maps its resources onto a fixed set of spaces, and stores multi-file payloads (source code, build output) as `file group`s: one manifest object plus one bytes object per file.
+All resource records and files are stored in one owned `storage-obj` space. Stable integer object types separate service, component, version, file, log, task, and outbox data. Multi-file payloads (source code, build output) are stored as `file group`s: one manifest object plus one bytes object per file.
 
 All objects are created in `UPDATE-ONLY` edit mode, so even record updates (which only happen where the semantic model allows, for example appending to a build list) never rewrite an existing storage version.
 
@@ -126,7 +126,7 @@ The manage page is a Vite + React + MobX frontend for browsing components, versi
 
 ## Config
 
-Two-layer config: `config/config.yaml` plus local override `config/config.0.yaml` (gitignored; real credentials belong only there). Main entries: server port, `storage-obj` base url and storage endpoint key, space name prefix, build concurrency and timeout. Refer to [service_storage.md](./service_storage.md#config).
+Two-layer config: `config/config.yaml` plus local override `config/config.0.yaml` (gitignored; real credentials belong only there). Main entries: server port, `storage-obj` base url and storage endpoint key, single space name, build concurrency and timeout. Refer to [service_storage.md](./service_storage.md#config).
 
 ## Documents
 

@@ -2,9 +2,10 @@
 // All persistent data of this service lives there; refer to /doc/service_storage.md.
 
 export class StorageObjError extends Error {
-  constructor(message, { httpStatus = 0 } = {}) {
+  constructor(message, { httpStatus = 0, resultCode = null } = {}) {
     super(message)
     this.httpStatus = httpStatus
+    this.resultCode = resultCode
   }
 }
 
@@ -53,19 +54,24 @@ export class StorageObjClient {
     if (!result || result.code !== 0) {
       throw new StorageObjError(
         `storage-obj ${endpoint}: ${result?.message || `http ${response.status}`}`,
-        { httpStatus: response.status },
+        { httpStatus: response.status, resultCode: result?.code ?? null },
       )
     }
     return result.data
   }
 
-  // returns null instead of throwing; for lookups where "not found" is a normal answer
-  // (storage-obj reports not-found as code -1)
+  // Returns null only for a confirmed missing object. Connection, authorization,
+  // and backend errors must remain visible to callers.
   async tryCall(endpoint, options) {
     try {
       return await this.call(endpoint, options)
     } catch (error) {
-      if (error instanceof StorageObjError) return null
+      if (
+        error instanceof StorageObjError
+        && (error.httpStatus === 404 || error.message.includes(': object not found:'))
+      ) {
+        return null
+      }
       throw error
     }
   }
@@ -82,11 +88,6 @@ export class StorageObjClient {
     return this.call('/api/space/list')
   }
 
-  // returns { spaceId, name } or null
-  async spaceFindByName(name) {
-    return this.tryCall('/api/space/find-by-name', { query: { name } })
-  }
-
   async spaceCreate() {
     return this.call('/api/space/create', { method: 'POST', body: {} })
   }
@@ -98,23 +99,35 @@ export class StorageObjClient {
     })
   }
 
+  async spaceMetadataList(spaceId) {
+    const data = await this.call('/api/space/metadata/list', { query: { spaceId } })
+    return data.items || data.metadataList || []
+  }
+
+  async spaceMetadataEnsure({ spaceId, tag, valueText }) {
+    return this.call('/api/space/metadata/ensure', {
+      method: 'POST',
+      body: { spaceId, tag, valueType: 1, valueText },
+    })
+  }
+
   // ---- object ----
   // dataType: 'text' | 'bytes' | 'json'
   // value field by dataType: valueText / valueBase64 / valueJson
   // all objects are created with editType 0 (UPDATE-ONLY): no in-place rewrite, ever
 
-  async objectCreate({ spaceId, dataType, valueText, valueJson, valueBase64 }) {
+  async objectCreate({ spaceId, dataType, type, valueText, valueJson, valueBase64 }) {
     const data = await this.call('/api/object/create', {
       method: 'POST',
-      body: { spaceId, dataType, editType: 0, valueText, valueJson, valueBase64 },
+      body: { spaceId, dataType, type, editType: 0, valueText, valueJson, valueBase64 },
     })
     return data.objectId
   }
 
-  async objectUpdate({ spaceId, dataType, objectId, valueText, valueJson, valueBase64 }) {
+  async objectUpdate({ spaceId, dataType, type, objectId, valueText, valueJson, valueBase64 }) {
     return this.call('/api/object/update', {
       method: 'POST',
-      body: { spaceId, dataType, objectId, valueText, valueJson, valueBase64 },
+      body: { spaceId, dataType, type, objectId, valueText, valueJson, valueBase64 },
     })
   }
 
@@ -124,18 +137,18 @@ export class StorageObjClient {
   }
 
   // returns { items, totalCount, pageIndex, pageSize }; items include full values
-  async objectList({ spaceId, dataType, pageIndex = 1, pageSize = 200 }) {
+  async objectList({ spaceId, dataType, type = null, pageIndex = 1, pageSize = 200 }) {
     return this.call('/api/object/list', {
-      query: { spaceId, dataType, pageIndex, pageSize },
+      query: { spaceId, dataType, type, pageIndex, pageSize },
     })
   }
 
   // list every non-deleted object of one (space, dataType), paging through
-  async objectListAll({ spaceId, dataType }) {
+  async objectListAll({ spaceId, dataType, type = null }) {
     const items = []
     let pageIndex = 1
     for (;;) {
-      const page = await this.objectList({ spaceId, dataType, pageIndex })
+      const page = await this.objectList({ spaceId, dataType, type, pageIndex })
       items.push(...page.items)
       if (items.length >= page.totalCount || page.items.length === 0) break
       pageIndex += 1

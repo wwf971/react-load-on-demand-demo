@@ -38,6 +38,8 @@ One JSON object per component:
 
 ```jsonc
 {
+  "objectKind": "component",
+  "schemaVersion": 1,
   "compId": "a1b2c3d4e5f6",
   "compName": "user-card",              // unique inside the service, editable
   "metadata": { /* comp metadata */ },  // editable
@@ -58,6 +60,8 @@ One JSON object per component version:
 
 ```jsonc
 {
+  "objectKind": "version",
+  "schemaVersion": 1,
   "compId": "a1b2c3d4e5f6",
   "versionId": "m3kfj29a0x1",
   "metadata": { /* version metadata */ },   // frozen at creation

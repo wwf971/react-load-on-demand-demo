@@ -8,8 +8,14 @@ import path from 'node:path'
 import { newIdRandom, newIdMs48, idMs48ToStampMs } from './id.js'
 import { timeNow } from './time.js'
 import { exposeSelect, versionMetadataAnalyze } from './versionMetadata.js'
-
-const SPACE_ROLES = ['service', 'comp', 'version', 'file', 'log', 'task', 'outbox']
+import {
+  OBJECT_TYPE,
+  OBJECT_TYPE_DEFINITION,
+  SPACE_METADATA_TAG,
+  STORAGE_OWNER,
+  STORAGE_SCHEMA_VERSION,
+  objectTypeName,
+} from './storageSchema.js'
 
 const CONTENT_TYPE_BY_EXT = {
   '.js': 'text/javascript',
@@ -54,10 +60,10 @@ export const buildHeadOf = (versionRecord) => {
 }
 
 export class ResourceService {
-  constructor({ client, spacePrefix }) {
+  constructor({ client, spaceName }) {
     this.client = client
-    this.spacePrefix = spacePrefix
-    this.spaceIdByRole = {}
+    this.spaceName = spaceName
+    this.spaceId = null
     this.serviceObjectId = null
     this.compIndexObjectId = null
     this.compIndex = { compById: {} } // compId -> { objectId }
@@ -77,65 +83,334 @@ export class ResourceService {
     return next
   }
 
-  // ---- init: ensure spaces and service-level objects ----
+  // ---- init: ensure one owned space and service-level objects ----
 
   async init() {
-    for (const role of SPACE_ROLES) {
-      const spaceName = `${this.spacePrefix}-${role}`
-      let found = await this.client.spaceFindByName(spaceName)
-      if (!found) {
-        const created = await this.client.spaceCreate()
-        await this.client.spaceMetadataUpsert({
-          spaceId: created.spaceId,
-          tag: 'name',
-          valueText: spaceName,
-        })
-        found = { spaceId: created.spaceId }
-      }
-      this.spaceIdByRole[role] = found.spaceId
+    this.serviceObjectId = null
+    this.compIndexObjectId = null
+    this.compIndex = { objectKind: 'comp-index', compById: {} }
+
+    let inspection = await this.storageInspect()
+    if (!inspection.space.isFound) {
+      const created = await this.client.spaceCreate()
+      await this.client.spaceMetadataEnsure({
+        spaceId: created.spaceId,
+        tag: SPACE_METADATA_TAG.OWNER,
+        valueText: STORAGE_OWNER,
+      })
+      await this.client.spaceMetadataEnsure({
+        spaceId: created.spaceId,
+        tag: SPACE_METADATA_TAG.SCHEMA_VERSION,
+        valueText: String(STORAGE_SCHEMA_VERSION),
+      })
+      // Publish the discoverable name only after ownership markers are complete.
+      await this.client.spaceMetadataUpsert({
+        spaceId: created.spaceId,
+        tag: SPACE_METADATA_TAG.NAME,
+        valueText: this.spaceName,
+      })
+      inspection = await this.storageInspect()
+    }
+    if (!inspection.space.isUnique || !inspection.space.isOwned) {
+      throw new Error(inspection.issues.join('; ') || `storage space is not usable: ${this.spaceName}`)
     }
 
-    // service metadata object and comp index object, identified by objectKind
-    const items = await this.client.objectListAll({
-      spaceId: this.spaceIdByRole.service,
-      dataType: 'json',
-    })
-    for (const item of items) {
-      if (item.valueJson?.objectKind === 'service-metadata') this.serviceObjectId = item.objectId
-      if (item.valueJson?.objectKind === 'comp-index') {
-        this.compIndexObjectId = item.objectId
-        this.compIndex = item.valueJson
-      }
-    }
-    if (!this.serviceObjectId) {
+    this.spaceId = inspection.space.spaceId
+    const blockingIssues = inspection.issues.filter(
+      (issue) => issue !== 'service metadata object is missing' && issue !== 'component index object is missing',
+    )
+    if (blockingIssues.length > 0) throw new Error(blockingIssues.join('; '))
+
+    if (inspection.root.serviceMetadata.count === 0) {
       this.serviceObjectId = await this.client.objectCreate({
-        spaceId: this.spaceIdByRole.service,
+        spaceId: this.spaceId,
         dataType: 'json',
+        type: OBJECT_TYPE.SERVICE_METADATA,
         valueJson: {
           objectKind: 'service-metadata',
-          schemaVersion: 1,
-          serviceName: 'react-lazy-load',
+          schemaVersion: STORAGE_SCHEMA_VERSION,
+          serviceName: STORAGE_OWNER,
           description: 'remote react component service',
           createdAt: timeNow(),
         },
       })
     }
-    if (!this.compIndexObjectId) {
-      this.compIndex = { objectKind: 'comp-index', compById: {} }
+    if (inspection.root.compIndex.count === 0) {
+      this.compIndex = { objectKind: 'comp-index', schemaVersion: STORAGE_SCHEMA_VERSION, compById: {} }
       this.compIndexObjectId = await this.client.objectCreate({
-        spaceId: this.spaceIdByRole.service,
+        spaceId: this.spaceId,
         dataType: 'json',
+        type: OBJECT_TYPE.COMP_INDEX,
         valueJson: this.compIndex,
       })
     }
+
+    inspection = await this.storageInspect()
+    if (!inspection.isStructureNormal) throw new Error(inspection.issues.join('; '))
+    this.serviceObjectId = inspection.root.serviceMetadata.objectId
+    this.compIndexObjectId = inspection.root.compIndex.objectId
+    this.compIndex = inspection.root.compIndex.valueJson
     if (!this.compIndex.compById) this.compIndex.compById = {}
   }
 
-  async serviceMetadataGet() {
+  async storageInspect() {
+    const result = {
+      space: {
+        name: this.spaceName,
+        isFound: false,
+        isUnique: false,
+        isOwned: false,
+        spaceId: null,
+        owner: '',
+        schemaVersion: '',
+      },
+      root: {
+        serviceMetadata: { count: 0, objectId: null, valueJson: null },
+        compIndex: { count: 0, objectId: null, valueJson: null },
+      },
+      objectCountByType: {},
+      objectCount: 0,
+      isStructureNormal: false,
+      issues: [],
+    }
+
+    const spacesData = await this.client.spaceList()
+    const matches = (spacesData.spaceItems || []).filter(
+      (space) => String(space.name || '').toLowerCase() === this.spaceName.toLowerCase(),
+    )
+    result.space.isFound = matches.length > 0
+    result.space.isUnique = matches.length === 1
+    if (matches.length === 0) {
+      result.issues.push(`storage space is missing: ${this.spaceName}`)
+      return result
+    }
+    if (matches.length > 1) {
+      result.issues.push(`multiple storage spaces have the name: ${this.spaceName}`)
+      return result
+    }
+
+    result.space.spaceId = matches[0].spaceId
+    const metadataItems = await this.client.spaceMetadataList(matches[0].spaceId)
+    const metadataByTag = Object.fromEntries(metadataItems.map((item) => [item.tag, item]))
+    result.space.owner = metadataByTag[SPACE_METADATA_TAG.OWNER]?.valueText || ''
+    result.space.schemaVersion = metadataByTag[SPACE_METADATA_TAG.SCHEMA_VERSION]?.valueText || ''
+    result.space.isOwned =
+      result.space.owner === STORAGE_OWNER
+      && result.space.schemaVersion === String(STORAGE_SCHEMA_VERSION)
+    if (result.space.owner !== STORAGE_OWNER) {
+      result.issues.push(`space owner should be ${STORAGE_OWNER}`)
+    }
+    if (result.space.schemaVersion !== String(STORAGE_SCHEMA_VERSION)) {
+      result.issues.push(`space schema version should be ${STORAGE_SCHEMA_VERSION}`)
+    }
+    if (!result.space.isOwned) return result
+
+    const objectByKey = new Map()
+    for (const dataType of ['json', 'bytes', 'text']) {
+      const items = await this.client.objectListAll({ spaceId: matches[0].spaceId, dataType })
+      for (const item of items) {
+        objectByKey.set(`${dataType}/${item.objectId}`, item)
+        result.objectCount += 1
+        const definition = OBJECT_TYPE_DEFINITION[item.type]
+        const typeKey = String(item.type)
+        result.objectCountByType[typeKey] = (result.objectCountByType[typeKey] || 0) + 1
+        if (!definition) {
+          result.issues.push(`object ${item.objectId} has unknown type ${item.type}`)
+          continue
+        }
+        if (definition.dataType !== dataType) {
+          result.issues.push(
+            `object ${item.objectId} type ${objectTypeName(item.type)} should use ${definition.dataType}`,
+          )
+          continue
+        }
+        if (definition.objectKind && item.valueJson?.objectKind !== definition.objectKind) {
+          result.issues.push(
+            `object ${item.objectId} type ${objectTypeName(item.type)} has invalid objectKind`,
+          )
+        }
+        if (
+          definition.objectKind
+          && item.valueJson?.schemaVersion !== STORAGE_SCHEMA_VERSION
+        ) {
+          result.issues.push(
+            `object ${item.objectId} type ${objectTypeName(item.type)} has invalid schema version`,
+          )
+        }
+        const shapeIssue = this.storageObjectShapeIssue(item)
+        if (shapeIssue) result.issues.push(`object ${item.objectId}: ${shapeIssue}`)
+        if (item.type === OBJECT_TYPE.SERVICE_METADATA) {
+          result.root.serviceMetadata.count += 1
+          result.root.serviceMetadata.objectId = item.objectId
+          result.root.serviceMetadata.valueJson = item.valueJson
+        }
+        if (item.type === OBJECT_TYPE.COMP_INDEX) {
+          result.root.compIndex.count += 1
+          result.root.compIndex.objectId = item.objectId
+          result.root.compIndex.valueJson = item.valueJson
+        }
+      }
+    }
+
+    this.storageReferenceIssues(objectByKey, result.issues)
+
+    if (result.root.serviceMetadata.count === 0) result.issues.push('service metadata object is missing')
+    if (result.root.serviceMetadata.count > 1) result.issues.push('multiple service metadata objects exist')
+    if (result.root.compIndex.count === 0) result.issues.push('component index object is missing')
+    if (result.root.compIndex.count > 1) result.issues.push('multiple component index objects exist')
+    if (
+      result.root.serviceMetadata.valueJson
+      && result.root.serviceMetadata.valueJson.serviceName !== STORAGE_OWNER
+    ) {
+      result.issues.push(`service metadata serviceName should be ${STORAGE_OWNER}`)
+    }
+    if (
+      result.root.compIndex.valueJson
+      && (
+        result.root.compIndex.valueJson.schemaVersion !== STORAGE_SCHEMA_VERSION
+        || typeof result.root.compIndex.valueJson.compById !== 'object'
+        || result.root.compIndex.valueJson.compById === null
+        || Array.isArray(result.root.compIndex.valueJson.compById)
+      )
+    ) {
+      result.issues.push('component index structure is invalid')
+    }
+    result.isStructureNormal = result.issues.length === 0
+    return result
+  }
+
+  storageObjectShapeIssue(item) {
+    const value = item.valueJson
+    if (item.type === OBJECT_TYPE.COMPONENT) {
+      if (!value?.compId || !Array.isArray(value.versionList)) return 'component structure is invalid'
+    }
+    if (item.type === OBJECT_TYPE.VERSION) {
+      if (!value?.compId || !value?.versionId || !Array.isArray(value.buildList)) {
+        return 'version structure is invalid'
+      }
+    }
+    if (item.type === OBJECT_TYPE.FILE_MANIFEST && !Array.isArray(value?.fileList)) {
+      return 'file manifest structure is invalid'
+    }
+    if (item.type === OBJECT_TYPE.TASK && !value?.taskId) return 'task structure is invalid'
+    if (
+      item.type === OBJECT_TYPE.OUTBOX_EVENT
+      && (!value?.eventId || !value?.taskId || value.eventType !== 'task-created')
+    ) {
+      return 'outbox event structure is invalid'
+    }
+    return ''
+  }
+
+  storageReferenceIssues(objectByKey, issues) {
+    const objectOf = (dataType, objectId, expectedType, description) => {
+      if (!objectId) return null
+      const item = objectByKey.get(`${dataType}/${objectId}`)
+      if (!item) {
+        issues.push(`${description} references missing object ${objectId}`)
+        return null
+      }
+      if (item.type !== expectedType) {
+        issues.push(`${description} references ${objectId} with type ${objectTypeName(item.type)}`)
+        return null
+      }
+      return item
+    }
+
+    for (const item of objectByKey.values()) {
+      if (item.type === OBJECT_TYPE.COMP_INDEX) {
+        for (const [compId, entry] of Object.entries(item.valueJson?.compById || {})) {
+          const component = objectOf('json', entry?.objectId, OBJECT_TYPE.COMPONENT, `component index ${compId}`)
+          if (component && component.valueJson?.compId !== compId) {
+            issues.push(`component index ${compId} points to a different component`)
+          }
+        }
+      }
+      if (item.type === OBJECT_TYPE.COMPONENT) {
+        for (const entry of item.valueJson?.versionList || []) {
+          const version = objectOf(
+            'json',
+            entry?.objectId,
+            OBJECT_TYPE.VERSION,
+            `component ${item.valueJson.compId} version ${entry?.versionId || ''}`,
+          )
+          if (
+            version
+            && (
+              version.valueJson?.compId !== item.valueJson.compId
+              || version.valueJson?.versionId !== entry.versionId
+            )
+          ) {
+            issues.push(`component ${item.valueJson.compId} has an invalid version reference`)
+          }
+        }
+      }
+      if (item.type === OBJECT_TYPE.FILE_MANIFEST) {
+        for (const entry of item.valueJson?.fileList || []) {
+          objectOf('bytes', entry?.objectId, OBJECT_TYPE.FILE_CONTENT, `file manifest ${item.objectId}`)
+        }
+      }
+      if (item.type === OBJECT_TYPE.VERSION) {
+        if (item.valueJson?.source?.fileGroupId) {
+          objectOf(
+            'json',
+            item.valueJson.source.fileGroupId,
+            OBJECT_TYPE.FILE_MANIFEST,
+            `version ${item.valueJson.versionId} source`,
+          )
+        }
+        for (const build of item.valueJson?.buildList || []) {
+          if (build?.logObjectId) {
+            objectOf(
+              'text',
+              build.logObjectId,
+              OBJECT_TYPE.BUILD_LOG,
+              `build ${build.buildId} log`,
+            )
+          }
+          if (build?.output?.fileGroupId) {
+            objectOf(
+              'json',
+              build.output.fileGroupId,
+              OBJECT_TYPE.FILE_MANIFEST,
+              `build ${build.buildId} output`,
+            )
+          }
+        }
+      }
+      if (item.type === OBJECT_TYPE.OUTBOX_EVENT) {
+        const taskId = item.valueJson?.taskId
+        const taskExists = [...objectByKey.values()].some(
+          (candidate) =>
+            candidate.type === OBJECT_TYPE.TASK
+            && candidate.valueJson?.taskId === taskId,
+        )
+        if (taskId && !taskExists) {
+          issues.push(`outbox event ${item.objectId} references missing task ${taskId}`)
+        }
+      }
+    }
+  }
+
+  async objectGetExpected({ dataType, objectId, type }) {
     const data = await this.client.objectGet({
-      spaceId: this.spaceIdByRole.service,
+      spaceId: this.spaceId,
+      dataType,
+      objectId,
+    })
+    if (data && data.type !== type) {
+      throw new Error(
+        `object ${objectId} has type ${objectTypeName(data.type)}, expected ${objectTypeName(type)}`,
+      )
+    }
+    return data
+  }
+
+  async serviceMetadataGet() {
+    const data = await this.objectGetExpected({
       dataType: 'json',
       objectId: this.serviceObjectId,
+      type: OBJECT_TYPE.SERVICE_METADATA,
     })
     return data?.valueJson || null
   }
@@ -155,8 +430,9 @@ export class ResourceService {
           ? file.contentBase64
           : Buffer.from(file.contentText ?? '', 'utf-8').toString('base64')
       const objectId = await this.client.objectCreate({
-        spaceId: this.spaceIdByRole.file,
+        spaceId: this.spaceId,
         dataType: 'bytes',
+        type: OBJECT_TYPE.FILE_CONTENT,
         valueBase64: contentBase64,
       })
       manifestFileList.push({
@@ -166,10 +442,15 @@ export class ResourceService {
         contentType: contentTypeOfPath(file.path),
       })
     }
-    const manifest = { fileList: manifestFileList }
+    const manifest = {
+      objectKind: 'file-manifest',
+      schemaVersion: STORAGE_SCHEMA_VERSION,
+      fileList: manifestFileList,
+    }
     const fileGroupId = await this.client.objectCreate({
-      spaceId: this.spaceIdByRole.file,
+      spaceId: this.spaceId,
       dataType: 'json',
+      type: OBJECT_TYPE.FILE_MANIFEST,
       valueJson: manifest,
     })
     this.manifestCacheById.set(fileGroupId, manifest)
@@ -181,10 +462,10 @@ export class ResourceService {
     if (this.manifestCacheById.has(fileGroupId)) {
       return this.manifestCacheById.get(fileGroupId)
     }
-    const data = await this.client.objectGet({
-      spaceId: this.spaceIdByRole.file,
+    const data = await this.objectGetExpected({
       dataType: 'json',
       objectId: fileGroupId,
+      type: OBJECT_TYPE.FILE_MANIFEST,
     })
     if (!data) return null
     this.manifestCacheById.set(fileGroupId, data.valueJson)
@@ -193,10 +474,10 @@ export class ResourceService {
 
   // returns Buffer or null
   async fileBytesGet(objectId) {
-    const data = await this.client.objectGet({
-      spaceId: this.spaceIdByRole.file,
+    const data = await this.objectGetExpected({
       dataType: 'bytes',
       objectId,
+      type: OBJECT_TYPE.FILE_CONTENT,
     })
     if (!data || data.valueBase64 === null || data.valueBase64 === undefined) return null
     return Buffer.from(data.valueBase64, 'base64')
@@ -220,10 +501,10 @@ export class ResourceService {
   async compRecordGet(compId) {
     const indexEntry = this.compIndex.compById[compId]
     if (!indexEntry) return null
-    const data = await this.client.objectGet({
-      spaceId: this.spaceIdByRole.comp,
+    const data = await this.objectGetExpected({
       dataType: 'json',
       objectId: indexEntry.objectId,
+      type: OBJECT_TYPE.COMPONENT,
     })
     if (!data) return null
     return { objectId: indexEntry.objectId, record: data.valueJson }
@@ -261,6 +542,8 @@ export class ResourceService {
 
       const compId = newIdRandom()
       const record = {
+        objectKind: 'component',
+        schemaVersion: STORAGE_SCHEMA_VERSION,
         compId,
         compName,
         metadata: metadata || { schemaVersion: 1 },
@@ -271,8 +554,9 @@ export class ResourceService {
       }
       // record first, index entry last (index write makes the component visible)
       const objectId = await this.client.objectCreate({
-        spaceId: this.spaceIdByRole.comp,
+        spaceId: this.spaceId,
         dataType: 'json',
+        type: OBJECT_TYPE.COMPONENT,
         valueJson: record,
       })
       this.compIndex.compById[compId] = { objectId }
@@ -283,8 +567,9 @@ export class ResourceService {
 
   async compIndexSave() {
     await this.client.objectUpdate({
-      spaceId: this.spaceIdByRole.service,
+      spaceId: this.spaceId,
       dataType: 'json',
+      type: OBJECT_TYPE.COMP_INDEX,
       objectId: this.compIndexObjectId,
       valueJson: this.compIndex,
     })
@@ -298,8 +583,9 @@ export class ResourceService {
       applyFn(found.record)
       found.record.updatedAt = timeNow()
       await this.client.objectUpdate({
-        spaceId: this.spaceIdByRole.comp,
+        spaceId: this.spaceId,
         dataType: 'json',
+        type: OBJECT_TYPE.COMPONENT,
         objectId: found.objectId,
         valueJson: found.record,
       })
@@ -342,10 +628,10 @@ export class ResourceService {
     if (!comp) return null
     const entry = (comp.record.versionList || []).find((v) => v.versionId === versionId)
     if (!entry) return null
-    const data = await this.client.objectGet({
-      spaceId: this.spaceIdByRole.version,
+    const data = await this.objectGetExpected({
       dataType: 'json',
       objectId: entry.objectId,
+      type: OBJECT_TYPE.VERSION,
     })
     if (!data) return null
     const result = { objectId: entry.objectId, record: data.valueJson, fetchedAt: Date.now() }
@@ -374,6 +660,8 @@ export class ResourceService {
 
     const versionId = newIdMs48()
     const record = {
+      objectKind: 'version',
+      schemaVersion: STORAGE_SCHEMA_VERSION,
       compId,
       versionId,
       metadata,
@@ -382,8 +670,9 @@ export class ResourceService {
       createdAt: timeNow(),
     }
     const objectId = await this.client.objectCreate({
-      spaceId: this.spaceIdByRole.version,
+      spaceId: this.spaceId,
       dataType: 'json',
+      type: OBJECT_TYPE.VERSION,
       valueJson: record,
     })
     await this.compRecordChange(compId, (compRecord) => {
@@ -404,8 +693,9 @@ export class ResourceService {
       if (!found) throw new Error(`version not found: ${compId}/${versionId}`)
       found.record.buildList.push(buildRecord)
       await this.client.objectUpdate({
-        spaceId: this.spaceIdByRole.version,
+        spaceId: this.spaceId,
         dataType: 'json',
+        type: OBJECT_TYPE.VERSION,
         objectId: found.objectId,
         valueJson: found.record,
       })
@@ -422,17 +712,18 @@ export class ResourceService {
 
   async buildLogCreate(logText) {
     return this.client.objectCreate({
-      spaceId: this.spaceIdByRole.log,
+      spaceId: this.spaceId,
       dataType: 'text',
+      type: OBJECT_TYPE.BUILD_LOG,
       valueText: logText,
     })
   }
 
   async buildLogGet(logObjectId) {
-    const data = await this.client.objectGet({
-      spaceId: this.spaceIdByRole.log,
+    const data = await this.objectGetExpected({
       dataType: 'text',
       objectId: logObjectId,
+      type: OBJECT_TYPE.BUILD_LOG,
     })
     return data ? data.valueText : null
   }

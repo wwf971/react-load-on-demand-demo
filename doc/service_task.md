@@ -1,13 +1,14 @@
 # Backend Task
 
-Building a version (pattern 1) is a backend task. The API request only records the task durably and returns; a task runner executes it later. Task records and outbox events live in storage-obj like everything else (spaces `react-lazy-load-task`, `react-lazy-load-outbox`), so task history survives restarts and is visible to every instance.
+Building a version (pattern 1) is a backend task. The API request only records the task durably and returns; a task runner executes it later. Task records and outbox events live in the service's single storage-obj space as types 8 and 9, so task history survives restarts and is visible to every instance.
 
 ## Task Record
 
-One JSON object per task in space `react-lazy-load-task`. `taskId` uses `ms_48` format.
+One type-8 JSON object per task. `taskId` uses `ms_48` format.
 
 ```jsonc
 {
+  "objectKind": "task",
   "schemaVersion": 1,
   "taskId": "m3kfj2b7qz9",
   "taskType": 1,                 // 1 = version build
@@ -42,10 +43,12 @@ Status rules:
 
 ## Outbox Event
 
-One JSON object per event in space `react-lazy-load-outbox`:
+One type-9 JSON object per event:
 
 ```jsonc
 {
+  "objectKind": "outbox-event",
+  "schemaVersion": 1,
   "eventId": "m3kfj2b7qza",
   "taskId": "m3kfj2b7qz9",
   "eventType": "task-created",
@@ -63,7 +66,7 @@ Claiming has no compare-and-set in storage-obj, so exactly one task runner loop 
 
 ```text
 taskRunner()                              one loop per deployment
-  -> poll react-lazy-load-outbox for pending events, oldest first
+  -> poll type-9 outbox objects for pending events, oldest first
   -> for each event
       -> read task record; if terminal already -> mark event done, continue
       -> runBuild(task)

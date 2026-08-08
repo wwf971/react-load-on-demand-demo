@@ -33,7 +33,7 @@ Other paths:
 ```text
 Tasks /             task list, live-updating over websocket
 Tasks / taskId /    task progress, result and cancel action
-Status /            service status and storage reachability
+Config /            service status, backend connectivity, required space and structure checks
 ```
 
 Layout rules (from project frontend rules): hierarchy shown by title size and divider lines, not card-in-card nesting; single edit/refresh icons sit next to the related title text; button groups occupy their own row, aligned left; log/json areas use non-serif font and selectable text.

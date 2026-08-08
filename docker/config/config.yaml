@@ -10,8 +10,8 @@ storage_obj:
   url_base: http://127.0.0.1:5107
   # null = use the storage-obj runtime default endpoint
   storage_endpoint_key: null
-  # space names become {prefix}-service, {prefix}-comp, ...
-  space_prefix: react-lazy-load
+  # all service objects live in this one owned, typed space
+  space_name: react-lazy-load
 
 build:
   concurrency: 1

@@ -14,7 +14,7 @@ const CONFIG_DEFAULT = {
   storage_obj: {
     url_base: 'http://127.0.0.1:5107',
     storage_endpoint_key: null, // null = storage-obj runtime default endpoint
-    space_prefix: 'react-lazy-load',
+    space_name: 'react-lazy-load',
   },
   build: {
     concurrency: 1,

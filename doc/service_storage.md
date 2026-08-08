@@ -4,20 +4,23 @@ All persistent data of this service lives in a `storage-obj` service (versioned 
 
 ## Space Layout
 
-The service uses a fixed set of spaces inside one storage endpoint. Space names carry a configurable prefix (default `react-lazy-load`), so one storage-obj instance can host several deployments.
+The service uses one configured space (default `react-lazy-load`) inside one storage endpoint. The space metadata must identify the owner as `react-lazy-load` and the supported schema version. Initialization creates a missing space, but refuses duplicate names, foreign ownership, unknown objects, or malformed structure.
+
+Objects are separated by storage-obj's integer `type`:
 
 ```text
-space react-lazy-load-service       json: service metadata object, comp index object
-space react-lazy-load-comp          json: component records
-space react-lazy-load-version       json: version records
-space react-lazy-load-file          json: file group manifests
-                                    bytes: file group member files
-space react-lazy-load-log           text: build logs
-space react-lazy-load-task          json: task records
-space react-lazy-load-outbox        json: outbox event records
+type 1  json    service metadata
+type 2  json    component index
+type 3  json    component records
+type 4  json    version records
+type 5  json    file group manifests
+type 6  bytes   file group member files
+type 7  text    build logs
+type 8  json    task records
+type 9  json    outbox events
 ```
 
-Navigation always starts from the comp index object in `react-lazy-load-service`:
+JSON records also carry `objectKind` and `schemaVersion`; initialization verifies that these agree with the storage type. Navigation always starts from the component index:
 
 ```text
 comp index  { compId: { objectId } }        -> component record
@@ -51,6 +54,8 @@ Manifest shape:
 
 ```jsonc
 {
+  "objectKind": "file-manifest",
+  "schemaVersion": 1,
   "fileList": [
     {
       "path": "assets/UserCard.js",   // relative path inside the folder; no "..", no absolute path
@@ -93,10 +98,10 @@ server:
 storage_obj:
   url_base: http://127.0.0.1:5107
   storage_endpoint_key: null    # null = use storage-obj runtime default endpoint
-  space_prefix: react-lazy-load
+  space_name: react-lazy-load
 build:
   concurrency: 1
   timeout_seconds: 600
 ```
 
-On first launch, the service ensures its spaces and the service/index objects exist (create-if-missing, never overwrite). Spaces are located by the storage-obj space metadata tag `name`.
+On first launch, the service creates the one space and its service/index objects if missing. Existing spaces are read and validated before use; initialization never clears a space, deletes a space, rewrites the global space registry, or adopts a same-name space without matching ownership metadata.
