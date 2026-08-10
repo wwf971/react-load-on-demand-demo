@@ -32,10 +32,11 @@ const COMP_COL_SIZE_BY_ID = {
   tags: { width: 160, minWidth: 80, resizable: true },
   versionCount: { width: 80, minWidth: 60, resizable: true },
 }
-const VERSION_COLS_ORDER = ['versionId', 'versionName', 'servable', 'buildCount', 'createdAt']
+const VERSION_COLS_ORDER = ['versionId', 'versionName', 'reactReq', 'servable', 'buildCount', 'createdAt']
 const VERSION_COLUMNS = {
   versionId: { data: 'versionId', align: 'left' },
   versionName: { data: 'versionName', align: 'left' },
+  reactReq: { data: 'react', align: 'left' },
   servable: { data: 'servable', align: 'left' },
   buildCount: { data: 'builds', align: 'right' },
   createdAt: { data: 'createdAt', align: 'left' },
@@ -43,9 +44,28 @@ const VERSION_COLUMNS = {
 const VERSION_COL_SIZE_BY_ID = {
   versionId: { width: 120, minWidth: 90, resizable: true },
   versionName: { width: 100, minWidth: 70, resizable: true },
+  reactReq: { width: 110, minWidth: 80, resizable: true },
   servable: { width: 80, minWidth: 60, resizable: true },
   buildCount: { width: 70, minWidth: 50, resizable: true },
   createdAt: { width: 180, minWidth: 120, resizable: true },
+}
+
+// declared package requirements other than react, as one readable line
+const packagesOtherTextOf = (expose) => {
+  return Object.entries(expose.packages || {})
+    .filter(([name]) => name !== 'react')
+    .map(([name, info]) => `${name} ${info?.versionRequired || ''}`.trim())
+    .join(', ')
+}
+
+// distinct react requirements declared across a version's exposed components
+const reactReqOfVersion = (version) => {
+  const reqList = []
+  for (const expose of version.metadata?.exposeList || []) {
+    const req = expose.packages?.react?.versionRequired || ''
+    if (req && !reqList.includes(req)) reqList.push(req)
+  }
+  return reqList.join(' / ')
 }
 const BUILD_COLS_ORDER = ['buildId', 'buildType', 'buildStatus', 'isHead', 'finishedAt']
 const BUILD_COLUMNS = {
@@ -65,6 +85,10 @@ const BUILD_COL_SIZE_BY_ID = {
 
 const ServableCell = ({ data }) => (
   <span className={data ? 'status-2' : 'status-3'}>{data ? 'yes' : 'no'}</span>
+)
+
+const ReactReqCell = ({ data }) => (
+  data ? <span className="react-req-badge">react {data}</span> : null
 )
 
 const BuildStatusCell = ({ data }) => (
@@ -451,6 +475,7 @@ const VersionListTable = observer(({ tabId, compId, versions, versionSelectedId,
     data: {
       versionId: version.versionId,
       versionName: version.metadata?.versionName || '',
+      reactReq: reactReqOfVersion(version),
       servable: Boolean(buildHeadOf(version)),
       buildCount: version.buildList?.length || 0,
       createdAt: version.createdAt || '',
@@ -480,7 +505,11 @@ const VersionListTable = observer(({ tabId, compId, versions, versionSelectedId,
           isStatusBarVisible: true,
           selectionMode: 'single',
           isLastColFilled: true,
-          compBodyByColId: (colId) => (colId === 'servable' ? ServableCell : undefined),
+          compBodyByColId: (colId) => {
+            if (colId === 'servable') return ServableCell
+            if (colId === 'reactReq') return ReactReqCell
+            return undefined
+          },
         }}
         onEvent={(eventType, eventData) => {
           if (eventType === 'rowIdsSelectedChange') {
@@ -528,7 +557,7 @@ const VersionDetail = observer(({ tabId, compId, version }) => {
           <div className="cell" style={{ width: 130 }}>exposeName</div>
           <div className="cell" style={{ width: 180 }}>module / export</div>
           <div className="cell" style={{ flex: 1 }}>description</div>
-          <div className="cell" style={{ width: 90 }}>packages</div>
+          <div className="cell" style={{ width: 230 }}>packages</div>
         </div>
         {(version.metadata?.exposeList || []).map((expose) => (
           <div className="row-table-row" key={expose.exposeName} style={{ cursor: 'default' }}>
@@ -537,8 +566,11 @@ const VersionDetail = observer(({ tabId, compId, version }) => {
               {expose.modulePath} / {expose.entryExport || 'default'}
             </div>
             <div className="cell" style={{ flex: 1 }}>{expose.description || ''}</div>
-            <div className="cell" style={{ width: 90 }}>
-              {Object.keys(expose.packages || {}).length}
+            <div className="cell" style={{ width: 230 }}>
+              {expose.packages?.react?.versionRequired && (
+                <span className="react-req-badge">react {expose.packages.react.versionRequired}</span>
+              )}
+              <span className="cell-id"> {packagesOtherTextOf(expose)}</span>
             </div>
           </div>
         ))}

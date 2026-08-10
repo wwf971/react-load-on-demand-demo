@@ -1,6 +1,6 @@
 # react-lazy-load service
 
-The service stores, builds, and serves versioned remote React components. A host page fetches a component at runtime through Module Federation, without knowing the component at its own build time. For how runtime loading itself works, refer to `./react-lazy-load.md`.
+The service is a component registry: it stores, builds, and serves versioned remote React components, much like a docker image registry does for images. Producers register component versions into it; host pages fetch a component at runtime through Module Federation, without knowing the component at their own build time. For how runtime loading itself works, refer to `./react-lazy-load.md`.
 
 The service is serverless: the service process keeps no persistent local state. All persistent data lives in a `storage-obj` service (versioned object storage). Local disk is used only as disposable build cache. The service process can be restarted at any time without data loss.
 
@@ -74,16 +74,16 @@ All objects are created in `UPDATE-ONLY` edit mode, so even record updates (whic
 
 Refer to [service_storage.md](./service_storage.md).
 
-## Updating component from local
+## Registering a component from local
 
-This service support two patterns of upserting a remote component:
+This service supports two patterns of registering a remote component, comparable to pushing an image to a docker image registry:
 
 1. upload source code(along with metadata, etc), the service builds and deploys it.
 2. upload already bundled component(along with metadata, etc), the service directly deploys it.
 
 Pattern 1 creates a version with source, then a backend build task builds it. Pattern 2 creates a version whose build list directly gets one successful entry of type `upload-prebuilt`; no build task runs.
 
-Both patterns can be driven from a local project folder by a submit script, using a `comp.jsonc` descriptor. The two example projects show the minimal service-built shape and the full locally-built shape. Workflow semantics: [service_workflow.md](./service_workflow.md). Project examples: [service_example.md](./service_example.md).
+Both patterns can be driven from a local project folder by a register script, using a `comp.jsonc` descriptor. The two example projects show the minimal service-built shape and the full locally-built shape. Workflow semantics: [service_workflow.md](./service_workflow.md). Project examples: [service_example.md](./service_example.md).
 
 ## Backend Build Task
 
@@ -122,7 +122,7 @@ Other services search components through `GET /api/comp/list` with name/tag filt
 
 ## Manage Page
 
-The manage page is a Vite + React + MobX frontend for browsing components, versions, builds and tasks, watching task progress in real time over websocket, and viewing service status. Refer to [service_manage_page.md](./service_manage_page.md).
+The manage page is a Vite + React + MobX frontend for browsing components, versions, builds and tasks, watching task progress in real time over websocket, trying registered components in a live playground, and viewing service status. Refer to [service_manage_page.md](./service_manage_page.md).
 
 ## Config
 
@@ -134,7 +134,7 @@ Two-layer config: `config/config.yaml` plus local override `config/config.0.yaml
 - [service_storage.md](./service_storage.md): mapping onto storage-obj, file group, config
 - [service_api.md](./service_api.md): HTTP API and file serving
 - [service_task.md](./service_task.md): build task, outbox event, websocket
-- [service_workflow.md](./service_workflow.md): common workflows, submit script, example projects
+- [service_workflow.md](./service_workflow.md): common workflows, register script, example projects
 - [service_example.md](./service_example.md): project shape and two submission examples
 - [service_manage_page.md](./service_manage_page.md): manage page frontend
 - [react-lazy-load.md](./react-lazy-load.md): how Module Federation runtime loading works (demo doc)

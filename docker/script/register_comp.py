@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Submit a local component folder as one new component version.
+"""Register a local component folder in the component registry as one new
+component version.
 
 Usage:
-    python submit_comp.py <folder containing comp.jsonc>
+    python register_comp.py <folder containing comp.jsonc>
 
 Works for both patterns (refer to /doc/service_workflow.md).
 How to run the template examples: /doc/service_example.md.
@@ -92,7 +93,7 @@ def main():
         sys.exit(1)
     project_dir = Path(sys.argv[1]).resolve()
     desc = json.loads(strip_jsonc((project_dir / "comp.jsonc").read_text("utf-8")))
-    url_base = desc["service"]["urlSubmit"].rstrip("/")
+    url_base = desc["service"]["urlRegistry"].rstrip("/")
 
     # resolve compName -> compId, create component when missing
     comp_name = desc["compName"]
@@ -113,12 +114,12 @@ def main():
         # pattern 2: paths relative to the output dir itself
         output_dir = project_dir / desc["output"]["dir"]
         body["outputFileList"] = collect_files(output_dir, output_dir)
-        print(f"submitting {len(body['outputFileList'])} prebuilt files from {desc['output']['dir']}/")
+        print(f"registering {len(body['outputFileList'])} prebuilt files from {desc['output']['dir']}/")
     elif desc.get("source", {}).get("dir"):
         # pattern 1: paths relative to the project folder (keep the dir prefix)
         source_dir = project_dir / desc["source"]["dir"]
         body["sourceFileList"] = collect_files(source_dir, project_dir)
-        print(f"submitting {len(body['sourceFileList'])} source files from {desc['source']['dir']}/")
+        print(f"registering {len(body['sourceFileList'])} source files from {desc['source']['dir']}/")
     else:
         raise RuntimeError("comp.jsonc must have source.dir or output.dir")
 

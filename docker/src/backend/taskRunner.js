@@ -204,7 +204,10 @@ export class TaskRunner {
 
       await this.tasks.progressAppend(taskId, 'pnpm install')
       await log('$ pnpm install')
-      const installArgs = ['install', '--no-frozen-lockfile']
+      // --ignore-workspace: the build folder may sit inside an enclosing pnpm
+      // workspace (local test mode); the build must resolve its own react copy,
+      // not a hoisted one from that workspace root
+      const installArgs = ['install', '--no-frozen-lockfile', '--ignore-workspace']
       if (process.env.PNPM_STORE_DIR) {
         installArgs.push('--store-dir', process.env.PNPM_STORE_DIR)
       }

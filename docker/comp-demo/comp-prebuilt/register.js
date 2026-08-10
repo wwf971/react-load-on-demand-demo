@@ -1,4 +1,5 @@
-// Submit this folder as one new component version, driven by ./comp.jsonc.
+// Register this folder in the component registry as one new component version,
+// driven by ./comp.jsonc.
 // Works for both patterns: "source" dir (service builds) or "output" dir (prebuilt).
 // Refer to /doc/service_workflow.md.
 
@@ -99,7 +100,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const main = async () => {
   const desc = readJsonc(path.join(projectDir, 'comp.jsonc'))
-  const urlBase = desc.service.urlSubmit.replace(/\/$/, '')
+  const urlBase = desc.service.urlRegistry.replace(/\/$/, '')
 
   // resolve compName -> compId, create component when missing
   let compId
@@ -127,12 +128,12 @@ const main = async () => {
     // pattern 2: paths relative to the output dir itself
     const outputDirAbs = path.join(projectDir, desc.output.dir)
     body.outputFileList = collectFiles(outputDirAbs, outputDirAbs)
-    console.log(`submitting ${body.outputFileList.length} prebuilt files from ${desc.output.dir}/`)
+    console.log(`registering ${body.outputFileList.length} prebuilt files from ${desc.output.dir}/`)
   } else if (desc.source?.dir) {
     // pattern 1: paths relative to the project folder (keep the dir prefix)
     const sourceDirAbs = path.join(projectDir, desc.source.dir)
     body.sourceFileList = collectFiles(sourceDirAbs, projectDir)
-    console.log(`submitting ${body.sourceFileList.length} source files from ${desc.source.dir}/`)
+    console.log(`registering ${body.sourceFileList.length} source files from ${desc.source.dir}/`)
   } else {
     throw new Error('comp.jsonc must have source.dir or output.dir')
   }

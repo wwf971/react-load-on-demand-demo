@@ -8,6 +8,7 @@ import {
 } from '@wwf971/react-comp-misc'
 import {
   PATH_KIND_COMPONENTS,
+  PATH_KIND_PLAYGROUND,
   PATH_KIND_STATUS,
   PATH_KIND_TASKS,
   storeUi,
@@ -15,12 +16,14 @@ import {
 import { storeComp } from './storeComp.js'
 import { storeTask } from './storeTask.js'
 import Comps from './panels/Comps.jsx'
+import Playground from './panels/Playground.jsx'
 import AllTasks from './panels/AllTasks.jsx'
 import Home from './panels/Home.jsx'
 import './App.css'
 
 const SECTION_LIST = [
   { key: 'section-components', kind: PATH_KIND_COMPONENTS, label: 'Components' },
+  { key: 'section-playground', kind: PATH_KIND_PLAYGROUND, label: 'Playground' },
   { key: 'section-tasks', kind: PATH_KIND_TASKS, label: 'Tasks' },
   { key: 'section-status', kind: PATH_KIND_STATUS, label: 'Config' },
 ]
@@ -118,6 +121,7 @@ const ManageTab = observer(({ tabId }) => {
       />
       <div className="app-main">
         {pathData.kind === PATH_KIND_COMPONENTS && <Comps tabId={tabId} pathData={pathData} />}
+        {pathData.kind === PATH_KIND_PLAYGROUND && <Playground tabId={tabId} />}
         {pathData.kind === PATH_KIND_TASKS && <AllTasks tabId={tabId} taskId={pathData.taskId} />}
         {pathData.kind === PATH_KIND_STATUS && <Home />}
       </div>
@@ -127,6 +131,7 @@ const ManageTab = observer(({ tabId }) => {
 
 const tabLabelOf = (pathData) => {
   if (pathData.kind === PATH_KIND_STATUS) return 'Config'
+  if (pathData.kind === PATH_KIND_PLAYGROUND) return 'Playground'
   if (pathData.kind === PATH_KIND_TASKS) return pathData.taskId || 'Tasks'
   if (pathData.buildId) return pathData.buildId
   if (pathData.versionId) return pathData.versionId
@@ -139,6 +144,9 @@ const tabLabelOf = (pathData) => {
 const pathSegmentsOf = (pathData) => {
   if (pathData.kind === PATH_KIND_STATUS) {
     return [{ id: 'status', name: 'Config' }]
+  }
+  if (pathData.kind === PATH_KIND_PLAYGROUND) {
+    return [{ id: 'playground', name: 'Playground' }]
   }
   if (pathData.kind === PATH_KIND_TASKS) {
     const segments = [{ id: 'tasks', name: 'Tasks' }]
@@ -165,6 +173,7 @@ const pathSegmentsOf = (pathData) => {
 
 const pathAtSegment = (pathData, index) => {
   if (pathData.kind === PATH_KIND_STATUS) return { kind: PATH_KIND_STATUS }
+  if (pathData.kind === PATH_KIND_PLAYGROUND) return { kind: PATH_KIND_PLAYGROUND }
   if (pathData.kind === PATH_KIND_TASKS) {
     return index === 0
       ? { kind: PATH_KIND_TASKS }

@@ -1,6 +1,6 @@
 # react-lazy-load service
 
-Serverless service that stores, builds, and serves versioned remote React components. All persistent data lives in a `storage-obj` service; local disk is only disposable build cache.
+Serverless component registry that stores, builds, and serves versioned remote React components (similar in spirit to a docker image registry, but for React components). All persistent data lives in a `storage-obj` service; local disk is only disposable build cache.
 
 The semantic model and full design live in the project docs — start at `/doc/react-lazy-load_service.md`.
 
@@ -12,7 +12,7 @@ docker/
     config.yaml            service config (config.0.yaml = gitignored local override)
   script/
     launch.sh              launcher for both local test mode and docker mode
-    submit_comp.py         submit a local component folder as one new version
+    register_comp.py       register a local component folder as one new version
   src/
     server.js              HTTP api + comp file serving + websocket
     storage.js             storage-obj HTTP client
@@ -45,4 +45,4 @@ docker/
 - `DATA_ROOT` (`/data`): served manage page assets
 - `CACHE_ROOT` (`/cache`): pnpm store and per-build work folders `build/{time}_{buildId}/` (disposable; kept for inspection, refer to `/doc/service_task.md#build-work-folder`)
 
-Pattern-1 builds use `src/backend/build-comp/` next to the task runner (not under `APP_ROOT`). Authoring examples under `comp-demo/` are for local submit only; see `/doc/service_example.md`.
+Pattern-1 builds use `src/backend/build-comp/` next to the task runner (not under `APP_ROOT`). Authoring examples under `comp-demo/` are for local registration only; see `/doc/service_example.md`.

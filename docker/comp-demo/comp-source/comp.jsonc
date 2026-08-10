@@ -1,8 +1,8 @@
-// Descriptor for submitting this folder as one new component version (pattern 1:
-// the service builds the source). Submit with:
-//   python script/submit_comp.py <this folder>
+// Descriptor for registering this folder as one new component version (pattern 1:
+// the service builds the source). Register with:
+//   python script/register_comp.py <this folder>
 {
-  "service": { "urlSubmit": "http://127.0.0.1:9415" },
+  "service": { "urlRegistry": "http://127.0.0.1:9415" },
 
   // resolved to compId via /api/comp/find-by-name; component is created when missing
   "compName": "hello-components",
@@ -50,6 +50,6 @@
     ]
   },
 
-  // pattern 1: files under this folder are submitted as sourceFileList
+  // pattern 1: files under this folder are registered as sourceFileList
   "source": { "dir": "src" }
 }

@@ -407,6 +407,86 @@
   margin-top: 4px;
 }
 
+/* ---- playground ---- */
+
+.playground-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.playground-picker-col {
+  flex: 1;
+  min-width: 200px;
+}
+
+.playground-picker-col .row-table {
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.playground-add-note {
+  margin-left: 8px;
+}
+
+.playground-instance {
+  border-top: 1px solid #ddd;
+  padding: 4px 0;
+  margin-top: 4px;
+}
+
+.playground-instance-body {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.playground-instance-props {
+  width: 300px;
+  flex-shrink: 0;
+}
+
+.playground-instance-render {
+  flex: 1;
+  min-width: 220px;
+  min-height: 60px;
+  border: 1px dashed #ccc;
+  border-radius: 2px;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.playground-error-note {
+  color: #b3261e;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* declared react version requirement of a remote component */
+.react-req-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  padding: 0 4px;
+  border-radius: 2px;
+  color: #17305f;
+  background: #eaf1fd;
+  border: 1px solid #abc0e0;
+  white-space: nowrap;
+}
+
+.react-req-badge.is-mismatch {
+  color: #9e2f2f;
+  background: #fff3f3;
+  border-color: #efbebe;
+}
+
 @media (prefers-color-scheme: dark) {
   .app-nav {
     border-right-color: #333;
@@ -491,5 +571,25 @@
 
   .control-icon-item.is-icon-only:hover:not(.is-disabled) {
     color: #ddd;
+  }
+
+  .playground-instance {
+    border-top-color: #333;
+  }
+
+  .playground-instance-render {
+    border-color: #444;
+  }
+
+  .react-req-badge {
+    color: #b8cce8;
+    background: #1a2438;
+    border-color: #3a5080;
+  }
+
+  .react-req-badge.is-mismatch {
+    color: #e8a0a0;
+    background: #2a1818;
+    border-color: #6a4040;
   }
 }

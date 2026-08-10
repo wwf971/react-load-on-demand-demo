@@ -3,6 +3,7 @@
 import { makeAutoObservable, observable } from 'mobx'
 
 export const PATH_KIND_COMPONENTS = 'components'
+export const PATH_KIND_PLAYGROUND = 'playground'
 export const PATH_KIND_TASKS = 'tasks'
 export const PATH_KIND_STATUS = 'status'
 
@@ -34,9 +35,16 @@ class StoreUi {
 
   messageState = { status: 'idle', messageText: '' }
 
+  // other stores register cleanup for their per-tab state here
+  tabCloseCallbacks = []
+
   constructor() {
-    makeAutoObservable(this)
+    makeAutoObservable(this, { tabCloseCallbacks: false })
     this.tabCreate({ kind: PATH_KIND_COMPONENTS })
+  }
+
+  tabCloseCallbackRegister(callback) {
+    this.tabCloseCallbacks.push(callback)
   }
 
   tabIdsOfSection(sectionKind) {
@@ -56,6 +64,7 @@ class StoreUi {
   }
 
   pathRootOfSection(sectionKind) {
+    if (sectionKind === PATH_KIND_PLAYGROUND) return { kind: PATH_KIND_PLAYGROUND }
     if (sectionKind === PATH_KIND_TASKS) return { kind: PATH_KIND_TASKS }
     if (sectionKind === PATH_KIND_STATUS) return { kind: PATH_KIND_STATUS }
     return { kind: PATH_KIND_COMPONENTS }
@@ -111,6 +120,7 @@ class StoreUi {
     if (index < 0) return
     this.tabIds.splice(index, 1)
     this.tabById.delete(tabId)
+    for (const callback of this.tabCloseCallbacks) callback(tabId)
     if (this.tabIds.length === 0) {
       this.tabCreate(this.pathRootOfSection(sectionKind))
       return

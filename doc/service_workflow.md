@@ -39,13 +39,13 @@ POST /api/comp/version/create {compId, metadata, outputFileList}
 
 No task, no websocket; the version is servable immediately.
 
-## Submit Script
+## Register Script
 
-Both patterns can be driven from a local project folder by a submit script, so creating a new version is one command. The folder holds a `comp.jsonc` descriptor:
+Registering a version is to this service what pushing an image is to a docker image registry. Both patterns can be driven from a local project folder by a register script, so creating a new version is one command. The folder holds a `comp.jsonc` descriptor:
 
 ```jsonc
 {
-  "service": { "urlSubmit": "http://127.0.0.1:9415" },
+  "service": { "urlRegistry": "http://127.0.0.1:9415" },
   "compName": "user-components",    // resolved to compId; created when missing
   "metadata": {
     "versionName": "1.0.0",
@@ -56,13 +56,13 @@ Both patterns can be driven from a local project folder by a submit script, so c
       { "exposeName": "user-avatar", /* module, export, props, packages */ }
     ]
   },
-  "source": { "dir": "src" },       // pattern 1: folder submitted as sourceFileList
-  "output": { "dir": "dist" }       // pattern 2: folder submitted as outputFileList
+  "source": { "dir": "src" },       // pattern 1: folder registered as sourceFileList
+  "output": { "dir": "dist" }       // pattern 2: folder registered as outputFileList
 }
 ```
 
 ```text
-submit script
+register script
   -> read comp.jsonc
   -> resolve compName -> compId (create component if missing)
   -> collect files under source.dir or output.dir (relative paths kept)
@@ -73,8 +73,8 @@ submit script
 
 The script exists in two equal flavors, use whichever fits the local toolchain:
 
-- python: `script/submit_comp.py <folder>` (works for both patterns)
-- node (pnpm): `pnpm run submit` in the `comp-prebuilt/` example project
+- python: `script/register_comp.py <folder>` (works for both patterns)
+- node (pnpm): `pnpm run register` in the `comp-prebuilt/` example project
 
 ## Example Component Projects
 
@@ -82,7 +82,7 @@ Two examples under `docker/comp-demo/`, matching the two patterns:
 
 ```text
 comp-demo/
-  comp-source/       pattern 1 authoring: source folder + comp.jsonc; submit script sends source
+  comp-source/       pattern 1 authoring: source folder + comp.jsonc; register script sends source
   comp-prebuilt/     pattern 2 authoring: full Vite + federation project that builds locally
 ```
 

@@ -1,10 +1,13 @@
-// Descriptor for submitting this project's build output as one new component
+// Descriptor for registering this project's build output as one new component
 // version (pattern 2: upload prebuilt). Steps:
-//   pnpm install
+//   pnpm install --ignore-workspace
 //   pnpm run build       -> dist/
-//   pnpm run submit      -> uploads dist/ as outputFileList
+//   pnpm run register    -> uploads dist/ as outputFileList
+// --ignore-workspace matters when this folder sits inside an enclosing pnpm
+// workspace: a react copy hoisted by that workspace must not leak into the
+// build, or hosts running another react version fail to render the component.
 {
-  "service": { "urlSubmit": "http://127.0.0.1:9415" },
+  "service": { "urlRegistry": "http://127.0.0.1:9415" },
 
   "compName": "hello-components",
 
@@ -51,7 +54,7 @@
     ]
   },
 
-  // pattern 2: files under this folder are submitted as outputFileList,
+  // pattern 2: files under this folder are registered as outputFileList,
   // with paths relative to the folder itself
   "output": { "dir": "dist" }
 }
